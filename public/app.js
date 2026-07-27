@@ -239,9 +239,19 @@ async function render() {
 }
 
 // Refresh periodically so edits from phones show up on the tablet.
-setInterval(() => {
-  if ($('#modal-backdrop').classList.contains('hidden')) render().catch(() => {});
-}, 30000);
+const safeRefresh = () => {
+  if (document.visibilityState === 'visible' &&
+      $('#modal-backdrop').classList.contains('hidden') &&
+      $('#screensaver').classList.contains('hidden')) {
+    render().catch(() => {});
+  }
+};
+setInterval(safeRefresh, 30000);
+// And refresh instantly when the tablet wakes up or the app regains focus,
+// so the screen is never stale right when someone looks at it.
+document.addEventListener('visibilitychange', safeRefresh);
+window.addEventListener('focus', safeRefresh);
+window.addEventListener('pageshow', safeRefresh);
 
 function memberById(id) { return state.members.find(m => m.id === id); }
 
