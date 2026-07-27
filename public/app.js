@@ -1434,16 +1434,11 @@ async function photoManager() {
   $('#m-upload').addEventListener('click', () => $('#f-photo').click());
   $('#f-photo').addEventListener('change', async (e) => {
     const files = [...e.target.files];
-    $('#m-upload').textContent = 'Uploading…';
     try {
-      for (const f of files) {
-        const b64 = await new Promise((resolve, reject) => {
-          const rd = new FileReader();
-          rd.onload = () => resolve(rd.result.split(',')[1]);
-          rd.onerror = reject;
-          rd.readAsDataURL(f);
-        });
-        await api.post('/api/photos', { name: f.name, data: b64, content_type: f.type });
+      for (let i = 0; i < files.length; i++) {
+        $('#m-upload').textContent = `Uploading ${i + 1}/${files.length}…`;
+        const photo = await preparePhoto(files[i]);
+        await api.post('/api/photos', photo);
       }
       photoCache = null;
       photoManager();
@@ -1457,9 +1452,38 @@ async function photoManager() {
   }));
 }
 
+// Downscale on the client so multi-photo uploads from phones stay fast and
+// under the API's size limit; falls back to the raw file if decoding fails.
+async function preparePhoto(file) {
+  const raw = () => new Promise((resolve, reject) => {
+    const rd = new FileReader();
+    rd.onload = () => resolve({ name: file.name, data: rd.result.split(',')[1], content_type: file.type });
+    rd.onerror = reject;
+    rd.readAsDataURL(file);
+  });
+  try {
+    const bmp = await createImageBitmap(file);
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * scale);
+    canvas.height = Math.round(bmp.height * scale);
+    canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close?.();
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    return {
+      name: file.name.replace(/\.[^.]+$/, '') + '.jpg',
+      data: dataUrl.split(',')[1],
+      content_type: 'image/jpeg',
+    };
+  } catch { return raw(); }
+}
+
 const SCREENSAVER_IDLE_MIN = 3;
+const SLIDE_SECONDS = 9;
 let photoCache = null;
 let idleSince = Date.now();
+let ssOrder = [];
 let ssIndex = 0;
 let ssCycleTimer = null;
 
@@ -1477,20 +1501,41 @@ async function maybeScreensaver() {
     try { photoCache = await api.get('/api/photos'); } catch { photoCache = []; }
   }
   if (!photoCache.length) return;
-  showScreensaverPhoto();
+
+  // Shuffled slideshow with two stacked layers crossfading between slides.
+  ssOrder = photoCache.map((_, i) => i).sort(() => Math.random() - 0.5);
+  ssIndex = -1;
+  $('#screensaver').innerHTML = `
+    <img class="ss-img" id="ss-a"><img class="ss-img" id="ss-b">
+    <div class="ss-clock" id="ss-clock"></div>`;
   $('#screensaver').classList.remove('hidden');
-  ssCycleTimer = setInterval(showScreensaverPhoto, 12000);
+  advanceSlide();
+  ssCycleTimer = setInterval(advanceSlide, SLIDE_SECONDS * 1000);
 }
 
-function showScreensaverPhoto() {
-  ssIndex = (ssIndex + 1) % photoCache.length;
+let ssFront = 'a';
+
+function advanceSlide() {
+  ssIndex = (ssIndex + 1) % ssOrder.length;
+  if (ssIndex === 0 && ssOrder.length > 2) ssOrder.sort(() => Math.random() - 0.5);
+  const url = photoCache[ssOrder[ssIndex]].url;
+
+  const back = $(ssFront === 'a' ? '#ss-b' : '#ss-a');
+  const front = $(ssFront === 'a' ? '#ss-a' : '#ss-b');
+  const img = new Image();
+  img.onload = () => {
+    back.src = url;
+    back.classList.add('showing');   // fades in over the old slide
+    front.classList.remove('showing');
+    ssFront = ssFront === 'a' ? 'b' : 'a';
+  };
+  img.src = url;
+
   const now = new Date();
   let h = now.getHours();
   const ap = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
-  $('#screensaver').innerHTML = `
-    <img src="${photoCache[ssIndex].url}">
-    <div class="ss-clock">${h}:${String(now.getMinutes()).padStart(2, '0')} <span>${ap}</span></div>`;
+  $('#ss-clock').textContent = `${h}:${String(now.getMinutes()).padStart(2, '0')} ${ap}`;
 }
 
 function hideScreensaver() {
