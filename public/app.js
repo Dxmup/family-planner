@@ -31,7 +31,13 @@ const auth = {
 const api = {
   async req(method, url, body, retried) {
     const headers = body ? { 'Content-Type': 'application/json' } : {};
-    const s = auth.session;
+    let s = auth.session;
+    // Refresh proactively when the access token is about to expire, so a
+    // phone that sat idle for an hour doesn't silently lose parent powers.
+    if (s?.expires_at && s.expires_at * 1000 < Date.now() + 60000 && !retried) {
+      await auth.refresh();
+      s = auth.session;
+    }
     if (s?.access_token) headers['Authorization'] = `Bearer ${s.access_token}`;
     const res = await fetch(url, {
       method,
@@ -43,6 +49,11 @@ const api = {
       const loggedIn = await promptLogin();
       if (loggedIn) return api.req(method, url, body, true);
       throw new Error('Parent login required');
+    }
+    if (res.status === 401 && method === 'GET' && s && !retried) {
+      // Stale session on a read: refresh once, else fall back to anonymous.
+      if (!await auth.refresh()) { auth.clear(); updateParentBtn(); }
+      return api.req(method, url, body, true);
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

@@ -27,7 +27,10 @@ const notFound = (res) => res.status(404).json({ error: 'not found' });
 function sendErr(res, error) {
   if (!error) return false;
   const msg = error.message || 'database error';
-  if (error.code === '42501' || /JWT|token|authoriz|row-level security/i.test(msg)) {
+  // PGRST116 ("Cannot coerce...") on a write means RLS filtered the row to
+  // nothing — i.e. the caller isn't an authenticated parent.
+  if (error.code === '42501' || error.code === 'PGRST116' ||
+      /JWT|token|authoriz|row-level security|Cannot coerce/i.test(msg)) {
     res.status(401).json({ error: 'Parent login required' });
   } else {
     res.status(400).json({ error: msg });
