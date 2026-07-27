@@ -100,6 +100,8 @@ function esc(s) {
 const state = {
   view: 'today',
   members: [],
+  todayFocus: null,              // member id: Today shows only their items
+  todayFocusTimer: null,
   calMonth: new Date(),          // any date within the displayed month
   calFilter: null,               // member id | 'family' | null (= everyone)
   mealsWeekStart: startOfWeek(new Date()),
@@ -281,9 +283,32 @@ function inWindow(r) {
   return (!r.start_time || cur >= r.start_time) && (!r.end_time || cur <= r.end_time);
 }
 
+const FOCUS_MINUTES = 3;
+
+function setTodayFocus(memberId) {
+  state.todayFocus = memberId;
+  clearTimeout(state.todayFocusTimer);
+  if (memberId !== null) {
+    // Snap back to the family overview automatically.
+    state.todayFocusTimer = setTimeout(() => {
+      state.todayFocus = null;
+      if (state.view === 'today') renderToday().catch(() => {});
+    }, FOCUS_MINUTES * 60 * 1000);
+  }
+  renderToday().catch(() => {});
+}
+
 async function renderToday() {
   const [d, weather] = await Promise.all([api.get('/api/dashboard'), weatherHtml()]);
   const day = fromYmd(d.date);
+
+  // Focus mode: narrow everything to one member (family-wide events stay).
+  const focus = state.todayFocus !== null ? memberById(state.todayFocus) : null;
+  if (focus) {
+    d.events = d.events.filter(e => e.member_id === focus.id || e.member_id === null);
+    d.chores = d.chores.filter(c => c.member_id === focus.id);
+    d.routines = (d.routines || []).filter(r => r.member_id === focus.id || r.member_id === null);
+  }
 
   const eventsHtml = d.events.length ? d.events.map(e => {
     const m = e.member_id ? memberById(e.member_id) : null;
@@ -340,10 +365,12 @@ async function renderToday() {
   // localStorage, so the wall tablet and each phone keep their own layout.
   const HANDLE = '<span class="drag-handle" title="Drag to rearrange">✥</span>';
   const cards = [
-    { key: 'schedule', html: `<h3>📅 Today's Schedule${HANDLE}</h3>${eventsHtml}` },
-    { key: 'meals', html: `<h3>🍽️ Meals${HANDLE}</h3>${mealsHtml}` },
-    { key: 'grocery', html: `<h3>🛒 ${grocery ? esc(grocery.name) : 'Groceries'}${HANDLE}</h3>${groceryHtml}` },
-    { key: 'chores', html: `<h3>⭐ Today's Chores${HANDLE}</h3>${choresHtml}` },
+    { key: 'schedule', html: `<h3>📅 ${focus ? esc(focus.name) + "'s Schedule" : "Today's Schedule"}${HANDLE}</h3>${eventsHtml}` },
+    ...(focus ? [] : [
+      { key: 'meals', html: `<h3>🍽️ Meals${HANDLE}</h3>${mealsHtml}` },
+      { key: 'grocery', html: `<h3>🛒 ${grocery ? esc(grocery.name) : 'Groceries'}${HANDLE}</h3>${groceryHtml}` },
+    ]),
+    { key: 'chores', html: `<h3>⭐ ${focus ? esc(focus.name) + "'s Chores" : "Today's Chores"}${HANDLE}</h3>${choresHtml}` },
   ];
   for (const r of (d.routines || []).filter(r => r.items.length)) {
     const m = r.member_id ? memberById(r.member_id) : null;
@@ -373,11 +400,19 @@ async function renderToday() {
   const gridHtml = cards.map(c =>
     `<div class="card today-card ${c.cls || ''}" data-key="${c.key}">${c.html}</div>`).join('');
 
+  const focusChips = `
+    <div class="member-filter" style="margin-bottom:14px">
+      <button class="member-chip ${!focus ? 'active' : ''}" data-focus="">👪 Everyone</button>
+      ${state.members.map(m => `
+        <button class="member-chip ${focus?.id === m.id ? 'active' : ''}" data-focus="${m.id}"
+          style="color:${m.color}">${esc(m.avatar)} ${esc(m.name)}</button>`).join('')}
+    </div>`;
+
   $('#main').innerHTML = `
     <div class="view-header">
       <div>
-        <div class="view-title">Good ${greeting()}!</div>
-        <div class="view-sub">${DOW[day.getDay()]}, ${MONTHS[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()}</div>
+        <div class="view-title">${focus ? `${esc(focus.avatar)} ${esc(focus.name)}'s Day` : `Good ${greeting()}!`}</div>
+        <div class="view-sub">${DOW[day.getDay()]}, ${MONTHS[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()}${focus ? ` · back to everyone in ${FOCUS_MINUTES} min` : ''}</div>
       </div>
       <div class="header-actions">
         ${weather}
@@ -385,10 +420,15 @@ async function renderToday() {
         <button class="btn" id="quick-add-event">+ Add Event</button>
       </div>
     </div>
-    ${annHtml}
-    ${cdHtml}
+    ${focusChips}
+    ${focus ? '' : annHtml}
+    ${focus ? '' : cdHtml}
     <div class="today-grid" id="today-grid">${gridHtml}</div>`;
 
+  $$('[data-focus]').forEach(chip => chip.addEventListener('click', () => {
+    const v = chip.dataset.focus;
+    setTodayFocus(v === '' || Number(v) === state.todayFocus ? null : Number(v));
+  }));
   $$('#today-grid .drag-handle').forEach(h => h.addEventListener('pointerdown', startCardDrag));
   $('#quick-add-event').addEventListener('click', () => eventForm({ date: d.date }));
   $('#add-extra').addEventListener('click', extrasForm);
@@ -435,8 +475,12 @@ function startCardDrag(e) {
     document.removeEventListener('pointerup', up);
     document.removeEventListener('pointercancel', up);
     card.classList.remove('dragging');
-    localStorage.setItem('fp_today_order',
-      JSON.stringify($$('.today-card', grid).map(c => c.dataset.key)));
+    // Don't persist while in single-member focus: hidden cards would lose
+    // their saved slots in the family layout.
+    if (state.todayFocus === null) {
+      localStorage.setItem('fp_today_order',
+        JSON.stringify($$('.today-card', grid).map(c => c.dataset.key)));
+    }
   };
   document.addEventListener('pointermove', move);
   document.addEventListener('pointerup', up);
