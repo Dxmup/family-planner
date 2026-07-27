@@ -3,13 +3,47 @@
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
+// ---------- parent auth ----------
+// Reading is open to everyone (the wall tablet never logs in); any change
+// requires a parent session. Tokens live in localStorage and refresh silently.
+
+const auth = {
+  load() { try { return JSON.parse(localStorage.getItem('fp_auth')) || null; } catch { return null; } },
+  save(s) { localStorage.setItem('fp_auth', JSON.stringify(s)); },
+  clear() { localStorage.removeItem('fp_auth'); },
+  get session() { return this.load(); },
+  async refresh() {
+    const s = this.load();
+    if (!s?.refresh_token) return false;
+    try {
+      const res = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: s.refresh_token }),
+      });
+      if (!res.ok) { this.clear(); return false; }
+      this.save(await res.json());
+      return true;
+    } catch { return false; }
+  },
+};
+
 const api = {
-  async req(method, url, body) {
+  async req(method, url, body, retried) {
+    const headers = body ? { 'Content-Type': 'application/json' } : {};
+    const s = auth.session;
+    if (s?.access_token) headers['Authorization'] = `Bearer ${s.access_token}`;
     const res = await fetch(url, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : {},
+      headers,
       body: body ? JSON.stringify(body) : undefined,
     });
+    if (res.status === 401 && method !== 'GET') {
+      if (!retried && await auth.refresh()) return api.req(method, url, body, true);
+      const loggedIn = await promptLogin();
+      if (loggedIn) return api.req(method, url, body, true);
+      throw new Error('Parent login required');
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || res.statusText);
@@ -92,6 +126,67 @@ function closeModal() {
 $('#modal-backdrop').addEventListener('click', (e) => {
   if (e.target.id === 'modal-backdrop') closeModal();
 });
+
+// ---------- login modal ----------
+
+let loginResolve = null;
+
+function promptLogin() {
+  return new Promise(resolve => {
+    loginResolve = resolve;
+    openModal(`
+      <h2>🔒 Parent Login</h2>
+      <p class="view-sub" style="margin-bottom:12px">Log in to add or change things. Viewing never needs a login.</p>
+      <div class="form-row"><label>Email</label><input id="f-email" type="email" autocomplete="username"></div>
+      <div class="form-row"><label>Password</label><input id="f-password" type="password" autocomplete="current-password"></div>
+      <div id="login-error" class="empty" style="display:none;color:#c85454"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="f-cancel">Cancel</button>
+        <button class="btn" id="f-login">Log in</button>
+      </div>`);
+    $('#f-email').focus();
+    const finish = (val) => { const r = loginResolve; loginResolve = null; closeModal(); r?.(val); };
+    $('#f-cancel').addEventListener('click', () => finish(false));
+    const submit = async () => {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: $('#f-email').value.trim(), password: $('#f-password').value }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const el = $('#login-error');
+        el.textContent = err.error || 'Login failed';
+        el.style.display = 'block';
+        return;
+      }
+      auth.save(await res.json());
+      updateParentBtn();
+      finish(true);
+    };
+    $('#f-login').addEventListener('click', submit);
+    $('#f-password').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+  });
+}
+
+function updateParentBtn() {
+  const s = auth.session;
+  const btn = $('#parent-btn');
+  if (!btn) return;
+  btn.innerHTML = s
+    ? `<span class="nav-icon">🔓</span><span>Parent</span>`
+    : `<span class="nav-icon">🔒</span><span>Parent</span>`;
+  btn.title = s ? `Logged in as ${s.email} — tap to log out` : 'Parent login';
+}
+
+$('#parent-btn')?.addEventListener('click', async () => {
+  if (auth.session) {
+    if (confirm(`Log out ${auth.session.email}?`)) { auth.clear(); updateParentBtn(); }
+  } else {
+    await promptLogin();
+  }
+});
+updateParentBtn();
 
 // ---------- navigation ----------
 
@@ -558,7 +653,7 @@ async function renderLists() {
         </span></h3>
       ${l.items.map(i => `
         <div class="list-item ${i.done ? 'done' : ''}">
-          <button class="chore-check ${i.done ? 'done' : ''}" data-toggle="${i.id}" data-done="${i.done}">${i.done ? '✓' : ''}</button>
+          <button class="chore-check ${i.done ? 'done' : ''}" data-toggle="${i.id}" data-done="${i.done ? 1 : 0}">${i.done ? '✓' : ''}</button>
           <span class="li-text">${esc(i.text)}</span>
           ${i.added_by ? `<span class="li-by">${esc(i.added_by)}</span>` : ''}
           <button class="li-del" data-del-item="${i.id}">✕</button>

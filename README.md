@@ -1,9 +1,8 @@
 # Family Planner
 
-A self-hosted family hub — like a Skylight calendar you own. Designed to run on a
-home server (a spare laptop, Raspberry Pi, or NAS) and be displayed full-screen on a
-tablet such as an Amazon Fire 10, while everyone in the family adds and edits from
-their own phone or computer on the same Wi-Fi.
+A family hub — like a Skylight calendar you own. Hosted on **Vercel** with data in
+**Supabase**, so it works from anywhere: display it full-screen on a tablet such as
+an Amazon Fire 10, while parents add and edit from their phones.
 
 ## Features
 
@@ -13,49 +12,66 @@ their own phone or computer on the same Wi-Fi.
 - **Chore charts** — per-person weekly charts with star points, tap-to-complete, and weekly star totals
 - **Lists** — shared grocery and to-do lists with check-off and "clear done"
 - **Family profiles** — each member gets a name, emoji avatar, and color used across the app
+- **Parental login** — anyone with the link can view (the tablet never logs in), but adding or changing anything requires a parent account
 
 Everything updates automatically: the tablet refreshes every 30 seconds, so items
 added from a phone show up without touching the display.
 
-## Quick start
+## How auth works
 
-Requires [Node.js](https://nodejs.org) 18 or newer.
+Viewing is open. All writes go through Supabase row-level security: only accounts
+whose email is in the `parents` table can change data. Tap the **🔒 Parent** button
+(bottom of the sidebar) to log in — or just try to add something and the login
+prompt appears. Sessions refresh silently, so you rarely re-enter the password.
+
+To add another parent, insert their email into `public.parents` and create an auth
+user for them in the Supabase dashboard (Authentication → Users → Add user).
+
+## Local development
+
+Requires [Node.js](https://nodejs.org) 20 or newer.
 
 ```bash
 npm install
 npm start
 ```
 
-Then open `http://<server-ip>:3000` from any device on your network.
-Data is stored in a single SQLite file at `data/family-planner.db` — back that file
-up and you've backed up everything.
+This runs the same API (`api/index.js`) plus static files at `http://localhost:3000`,
+talking to the live Supabase database. Set `SUPABASE_URL` / `SUPABASE_ANON_KEY` to
+point elsewhere.
 
-Set `PORT` to change the port, `DB_PATH` to move the database file.
+## Deployment
+
+Vercel serves `public/` statically and runs `api/index.js` as a serverless function
+(`vercel.json` rewrites `/api/*` to it). Deploy with `vercel --prod` or push to the
+connected Git repo. The Supabase anon key is publishable by design; all protection
+lives in row-level security.
 
 ## Setting up the Fire 10 tablet
 
-1. Open the **Silk browser** on the tablet and go to `http://<server-ip>:3000`.
+1. Open the **Silk browser** on the tablet and go to the Vercel URL.
 2. Add it to the home screen (menu → *Add to Home Screen*) so it launches like an app.
 3. In Fire tablet **Settings → Display**, set the screen timeout to the longest value
    (or install a kiosk app such as *Fully Kiosk Browser* from the Amazon Appstore for
    a true always-on display).
-4. Leave the **Today** tab up — it's designed as the wall display.
+4. Leave the **Today** tab up — it's designed as the wall display. It never needs to log in.
 
 ## First-run setup
 
-1. Go to the **Family** tab and add each family member with a color and avatar.
-2. Add recurring events (practices, lessons) on the **Calendar** tab using the *Repeats* option.
-3. Build the chore chart on the **Chores** tab — assign chores to people and days of the week.
-4. Fill in the week on the **Meals** tab.
+1. Tap **🔒 Parent** and log in.
+2. Go to the **Family** tab and add each family member with a color and avatar.
+3. Add recurring events (practices, lessons) on the **Calendar** tab using the *Repeats* option.
+4. Build the chore chart on the **Chores** tab — assign chores to people and days of the week.
+5. Fill in the week on the **Meals** tab.
 
 ## API
 
 All data is exposed over a simple JSON API (`/api/members`, `/api/events`,
-`/api/meals`, `/api/chores`, `/api/lists`, `/api/dashboard`), so you can script
-imports or hook it up to home automation if you like.
+`/api/meals`, `/api/chores`, `/api/lists`, `/api/dashboard`). Reads are public;
+writes need a `Authorization: Bearer <token>` from `/api/auth/login`.
 
 ## Tech
 
-Node.js + Express + SQLite (better-sqlite3) backend, dependency-free vanilla JS
-frontend with no build step. Runs entirely on your LAN — no accounts, no cloud,
-no subscription.
+Vanilla JS frontend with no build step; Express app running as a single Vercel
+serverless function; Supabase (Postgres + Auth) with row-level security enforcing
+the parent-only write rule at the database layer.

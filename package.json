@@ -1,7 +1,7 @@
 {
   "name": "family-planner",
-  "version": "1.0.0",
-  "description": "Self-hosted family planning hub: calendars, meals, chores, and lists for a wall-mounted tablet",
+  "version": "2.0.0",
+  "description": "Family planning hub on Vercel + Supabase: calendars, meals, chores, and lists with parental login",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,7 +12,7 @@
   },
   "license": "ISC",
   "dependencies": {
-    "better-sqlite3": "^13.0.1",
+    "@supabase/supabase-js": "^2.45.4",
     "express": "^5.2.1"
   }
 }
