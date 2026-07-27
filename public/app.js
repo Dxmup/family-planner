@@ -360,12 +360,13 @@ async function dayDetail(dateStr) {
   const d = fromYmd(dateStr);
   const rows = events.length ? events.map(e => {
     const m = e.member_id ? memberById(e.member_id) : null;
+    const isGoogle = e.source === 'google';
     return `<div class="event-row">
       <span class="member-dot" style="background:${m ? m.color : 'var(--muted)'}"></span>
       <span class="event-time">${e.start_time ? esc(fmtTime(e.start_time)) : 'All day'}</span>
-      <span class="event-title">${esc(e.title)}${m ? ` <span class="li-by">(${esc(m.name)})</span>` : ''}</span>
-      <button class="btn ghost small" data-edit="${e.id}">Edit</button>
-      <button class="li-del" data-del="${e.id}">🗑️</button>
+      <span class="event-title">${esc(e.title)}${m ? ` <span class="li-by">(${esc(m.name)})</span>` : ''}${isGoogle ? ' <span class="li-by">📆 Google</span>' : ''}</span>
+      ${isGoogle ? '' : `<button class="btn ghost small" data-edit="${e.id}">Edit</button>
+      <button class="li-del" data-del="${e.id}">🗑️</button>`}
     </div>`;
   }).join('') : '<div class="empty">No events this day</div>';
 
@@ -720,11 +721,17 @@ async function renderLists() {
 // ---------- Family ----------
 
 async function renderFamily() {
+  let calendars = [];
+  try { calendars = await api.get('/api/member-calendars'); } catch { /* not logged in */ }
+  const calFor = (mid) => calendars.find(c => c.member_id === mid);
+
+  const familyCal = calFor(null);
   const cards = state.members.map(m => `
     <div class="card member-card" data-member="${m.id}">
       <div class="avatar">${esc(m.avatar)}</div>
       <div class="name">${esc(m.name)}</div>
       <div class="swatch" style="background:${m.color}"></div>
+      ${calFor(m.id) ? `<div class="li-by" style="margin-bottom:8px">📆 Google Calendar linked${calFor(m.id).last_error ? ' ⚠️' : ''}</div>` : ''}
       <button class="btn ghost small">Edit</button>
     </div>`).join('');
 
@@ -734,6 +741,7 @@ async function renderFamily() {
         <div class="view-title">Family</div>
         <div class="view-sub">Everyone gets a color for calendars and chores</div>
       </div>
+      <button class="btn ghost" id="family-cal">📆 Family Google Calendar${familyCal ? ' ✓' : ''}</button>
     </div>
     <div class="family-grid">
       ${cards}
@@ -741,12 +749,43 @@ async function renderFamily() {
     </div>`;
 
   $('#add-member').addEventListener('click', () => memberForm());
+  $('#family-cal').addEventListener('click', () => calendarForm(null, familyCal));
   $$('[data-member]').forEach(card => card.addEventListener('click', () => {
-    memberForm(state.members.find(m => m.id === Number(card.dataset.member)));
+    memberForm(state.members.find(m => m.id === Number(card.dataset.member)), calFor(Number(card.dataset.member)));
   }));
 }
 
-function memberForm(m = {}) {
+const GCAL_HELP = 'In Google Calendar: Settings → your calendar → "Integrate calendar" → copy the <b>Secret address in iCal format</b>. Events sync automatically every 10 minutes.';
+
+async function saveCalendarUrl(memberId, url, previous) {
+  const oldUrl = previous?.url || '';
+  if (url.trim() === oldUrl.trim()) return;
+  await api.put('/api/member-calendars', { member_id: memberId, url: url.trim() });
+  api.post('/api/gcal-sync', {}).catch(() => {});
+}
+
+// Standalone editor for the whole-family calendar (member_id null).
+function calendarForm(memberId, existing) {
+  openModal(`
+    <h2>📆 Family Google Calendar</h2>
+    <div class="form-row"><label>Secret iCal address</label>
+      <input id="f-gcal" value="${esc(existing?.url || '')}" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"></div>
+    <div class="view-sub" style="margin-bottom:10px">${GCAL_HELP}</div>
+    ${existing?.last_error ? `<div class="empty" style="color:#c85454">Last sync failed: ${esc(existing.last_error)}</div>` : ''}
+    <div class="modal-actions">
+      <button class="btn ghost" id="f-cancel">Cancel</button>
+      <button class="btn" id="f-save">Save</button>
+    </div>`);
+  $('#f-cancel').addEventListener('click', closeModal);
+  $('#f-save').addEventListener('click', async () => {
+    try {
+      await saveCalendarUrl(memberId, $('#f-gcal').value, existing);
+      closeModal(); render();
+    } catch (e) { alert(e.message); }
+  });
+}
+
+function memberForm(m = {}, cal = null) {
   const isEdit = !!m.id;
   openModal(`
     <h2>${isEdit ? 'Edit' : 'Add'} Family Member</h2>
@@ -759,6 +798,12 @@ function memberForm(m = {}) {
       <div class="color-picker">${COLORS.map(c =>
         `<button class="color-opt ${(m.color || COLORS[0]) === c ? 'on' : ''}" data-color="${c}" style="background:${c}"></button>`).join('')}</div>
     </div>
+    ${isEdit ? `
+    <div class="form-row"><label>📆 Google Calendar (secret iCal address)</label>
+      <input id="f-gcal" value="${esc(cal?.url || '')}" placeholder="https://calendar.google.com/calendar/ical/…/basic.ics">
+      <div class="li-by" style="margin-top:6px">${GCAL_HELP}</div>
+      ${cal?.last_error ? `<div class="li-by" style="color:#c85454;margin-top:4px">Last sync failed: ${esc(cal.last_error)}</div>` : ''}
+    </div>` : ''}
     <div class="modal-actions">
       ${isEdit ? '<button class="btn danger" id="f-delete">Remove</button>' : ''}
       <span class="spacer"></span>
@@ -788,8 +833,12 @@ function memberForm(m = {}) {
     };
     if (!body.name.trim()) { alert('Please enter a name'); return; }
     try {
-      if (isEdit) await api.put(`/api/members/${m.id}`, body);
-      else await api.post('/api/members', body);
+      if (isEdit) {
+        await api.put(`/api/members/${m.id}`, body);
+        await saveCalendarUrl(m.id, $('#f-gcal')?.value ?? '', cal);
+      } else {
+        await api.post('/api/members', body);
+      }
       closeModal(); render();
     } catch (e) { alert(e.message); }
   });

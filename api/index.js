@@ -176,13 +176,54 @@ async function fetchExpandedEvents(sb, start, end) {
   return out;
 }
 
+// Google Calendar events synced into the gcal_events cache by the sync-gcal
+// edge function. Shaped like app events but read-only (source: 'google').
+async function fetchGcalEvents(sb, start, end) {
+  const [{ data: gevents, error: e1 }, { data: members, error: e2 }] = await Promise.all([
+    sb.from('gcal_events').select('*').gte('date', start).lte('date', end),
+    sb.from('members').select('id,name,color,avatar'),
+  ]);
+  if (e1 || e2) throw (e1 || e2);
+  const byId = Object.fromEntries((members || []).map(m => [m.id, m]));
+  return (gevents || []).map(g => {
+    const m = g.member_id ? byId[g.member_id] : null;
+    return {
+      id: 'g' + g.id,
+      source: 'google',
+      title: g.title,
+      member_id: g.member_id,
+      date: g.date,
+      occurs_on: g.date,
+      start_time: g.start_time,
+      end_time: g.end_time,
+      location: g.location,
+      notes: null,
+      recurrence: 'none',
+      recurrence_until: null,
+      member_name: m ? m.name : null,
+      member_color: m ? m.color : null,
+      member_avatar: m ? m.avatar : null,
+    };
+  });
+}
+
+function sortOccurrences(list) {
+  return list.sort((a, b) =>
+    a.occurs_on.localeCompare(b.occurs_on) ||
+    (a.start_time || '').localeCompare(b.start_time || ''));
+}
+
 app.get('/api/events', async (req, res) => {
   const { start, end } = req.query;
   if (!DATE_RE.test(start || '') || !DATE_RE.test(end || '')) {
     return bad(res, 'start and end (YYYY-MM-DD) are required');
   }
   try {
-    ok(res, await fetchExpandedEvents(req.sb, start, end));
+    const [own, google] = await Promise.all([
+      fetchExpandedEvents(req.sb, start, end),
+      fetchGcalEvents(req.sb, start, end),
+    ]);
+    ok(res, sortOccurrences(own.concat(google)));
   } catch (e) { sendErr(res, e); }
 });
 
@@ -229,6 +270,55 @@ app.delete('/api/events/:id', async (req, res) => {
   const { data, error } = await req.sb.from('events').delete().eq('id', req.params.id).select();
   if (sendErr(res, error)) return;
   data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+// ---------- Google Calendar links ----------
+// Secret iCal URLs are parent-only (RLS blocks everyone else).
+
+app.get('/api/member-calendars', async (req, res) => {
+  const { data, error } = await req.sb.from('member_calendars').select('*').order('id');
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+// Upsert the calendar URL for one member (member_id null = whole family).
+// An empty url removes the link and its cached events.
+app.put('/api/member-calendars', async (req, res) => {
+  const { member_id, url } = req.body;
+  const mid = member_id || null;
+  const match = (q) => (mid === null ? q.is('member_id', null) : q.eq('member_id', mid));
+  if (!url || !url.trim()) {
+    const { error: e1 } = await match(req.sb.from('member_calendars').delete());
+    if (sendErr(res, e1)) return;
+    const { error: e2 } = await match(req.sb.from('gcal_events').delete());
+    if (sendErr(res, e2)) return;
+    return ok(res, { removed: true });
+  }
+  const clean = url.trim();
+  if (!/^(https|webcal):\/\//i.test(clean)) return bad(res, 'url must start with https:// or webcal://');
+  const { data: existing, error: selErr } = await match(
+    req.sb.from('member_calendars').select('id')).maybeSingle();
+  if (sendErr(res, selErr)) return;
+  const q = existing
+    ? req.sb.from('member_calendars').update({ url: clean, last_error: null }).eq('id', existing.id)
+    : req.sb.from('member_calendars').insert({ member_id: mid, url: clean });
+  const { data, error } = await q.select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+// Trigger an immediate sync (also runs automatically every 10 minutes).
+app.post('/api/gcal-sync', async (req, res) => {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/sync-gcal`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    res.status(r.status).json(await r.json().catch(() => ({})));
+  } catch (e) {
+    res.status(502).json({ error: 'sync failed: ' + e.message });
+  }
 });
 
 // ---------- Meals ----------
@@ -441,9 +531,10 @@ app.get('/api/dashboard', async (req, res) => {
   const date = DATE_RE.test(req.query.date || '') ? req.query.date : new Date().toISOString().slice(0, 10);
   try {
     const weekday = new Date(date + 'T00:00:00Z').getUTCDay();
-    const [membersR, events, meals, chores, compsR, lists] = await Promise.all([
+    const [membersR, events, google, meals, chores, compsR, lists] = await Promise.all([
       req.sb.from('members').select('*').order('id'),
       fetchExpandedEvents(req.sb, date, date),
+      fetchGcalEvents(req.sb, date, date),
       req.sb.from('meals').select('*').eq('date', date),
       fetchChores(req.sb),
       req.sb.from('chore_completions').select('chore_id').eq('date', date),
@@ -454,7 +545,7 @@ app.get('/api/dashboard', async (req, res) => {
     ok(res, {
       date,
       members: membersR.data,
-      events,
+      events: sortOccurrences(events.concat(google)),
       meals: meals.data,
       chores: chores.filter(c => c.days.includes(weekday)).map(c => ({ ...c, done: completions.includes(c.id) })),
       lists,

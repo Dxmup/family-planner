@@ -13,6 +13,7 @@ an Amazon Fire 10, while parents add and edit from their phones.
 - **Lists** — shared grocery and to-do lists with check-off and "clear done"
 - **Family profiles** — each member gets a name, emoji avatar, and color used across the app
 - **Parental login** — anyone with the link can view (the tablet never logs in), but adding or changing anything requires a parent account
+- **Google Calendar sync** — link each member's (and the family's) Google Calendar via its secret iCal address; events appear color-coded and re-sync automatically every 10 minutes
 
 Everything updates automatically: the tablet refreshes every 30 seconds, so items
 added from a phone show up without touching the display.
@@ -26,6 +27,20 @@ prompt appears. Sessions refresh silently, so you rarely re-enter the password.
 
 To add another parent, insert their email into `public.parents` and create an auth
 user for them in the Supabase dashboard (Authentication → Users → Add user).
+
+## Google Calendar sync
+
+Each family member (plus a whole-family slot) can be linked to a Google Calendar:
+
+1. In Google Calendar (on the web), open **Settings → [the calendar] → Integrate calendar** and copy the **Secret address in iCal format**.
+2. In the planner, log in as a parent, open the **Family** tab, tap the member (or the
+   *Family Google Calendar* button) and paste the address.
+
+The `sync-gcal` Supabase edge function fetches every linked feed, expands recurring
+events, and caches them in `gcal_events`; pg_cron re-runs it every 10 minutes, and the
+app triggers an immediate sync when a URL is saved. Google events are read-only in the
+planner — edit them in Google Calendar and they update on the next sync. The secret
+URLs are protected by RLS (parents + the service role only).
 
 ## Local development
 
