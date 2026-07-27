@@ -1546,6 +1546,21 @@ function hideScreensaver() {
 
 setInterval(maybeScreensaver, 20000);
 
+// ---------- wake lock ----------
+// Ask the OS to keep the screen on while the planner is in the foreground
+// (belt-and-suspenders alongside Fire OS's "Stay awake" developer setting).
+
+let wakeLock = null;
+async function keepAwake() {
+  if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } catch { /* not granted — the OS setting still covers the tablet */ }
+}
+document.addEventListener('visibilitychange', keepAwake);
+keepAwake();
+
 // ---------- boot ----------
 
 render().catch(err => {
