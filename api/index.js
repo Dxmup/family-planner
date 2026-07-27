@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpleGN1dmZxb216YW10a2tyeXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxNTkxMzAsImV4cCI6MjEwMDczNTEzMH0.3MqbfOAgaBiX8f1SVRm7nLevWo2JMis9Ba6sW9-dJpk';
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '12mb' }));   // photo uploads arrive as base64 JSON
 
 // Reads run as the anonymous role; writes run as the caller so that
 // row-level security decides who may change data (parents only).
@@ -27,7 +27,7 @@ const notFound = (res) => res.status(404).json({ error: 'not found' });
 function sendErr(res, error) {
   if (!error) return false;
   const msg = error.message || 'database error';
-  if (error.code === '42501' || /JWT|token|authoriz/i.test(msg)) {
+  if (error.code === '42501' || /JWT|token|authoriz|row-level security/i.test(msg)) {
     res.status(401).json({ error: 'Parent login required' });
   } else {
     res.status(400).json({ error: msg });
@@ -336,7 +336,7 @@ app.get('/api/meals', async (req, res) => {
 
 // Upsert by (date, meal_type). Empty title clears the slot.
 app.put('/api/meals', async (req, res) => {
-  const { date, meal_type, title, notes } = req.body;
+  const { date, meal_type, title, notes, recipe_id } = req.body;
   if (!DATE_RE.test(date || '')) return bad(res, 'date (YYYY-MM-DD) is required');
   if (!['breakfast', 'lunch', 'dinner', 'snack'].includes(meal_type)) {
     return bad(res, 'meal_type must be breakfast|lunch|dinner|snack');
@@ -347,10 +347,336 @@ app.put('/api/meals', async (req, res) => {
     return ok(res, { cleared: true });
   }
   const { data, error } = await req.sb.from('meals')
-    .upsert({ date, meal_type, title: title.trim(), notes: notes || null }, { onConflict: 'date,meal_type' })
+    .upsert({ date, meal_type, title: title.trim(), notes: notes || null, recipe_id: recipe_id || null },
+            { onConflict: 'date,meal_type' })
     .select().single();
   if (sendErr(res, error)) return;
   ok(res, data);
+});
+
+// ---------- Recipes ----------
+// The recipe box: created once, linked from meal slots by recipe_id.
+
+const cleanIngredients = (list) =>
+  (Array.isArray(list) ? list : []).map(s => String(s).trim()).filter(Boolean);
+
+app.get('/api/recipes', async (req, res) => {
+  const { data, error } = await req.sb.from('recipes').select('*').order('title');
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.post('/api/recipes', async (req, res) => {
+  const { title, notes, ingredients } = req.body;
+  if (!title || !title.trim()) return bad(res, 'title is required');
+  const { data, error } = await req.sb.from('recipes')
+    .insert({ title: title.trim(), notes: notes || null, ingredients: cleanIngredients(ingredients) })
+    .select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.put('/api/recipes/:id', async (req, res) => {
+  const { data: r } = await req.sb.from('recipes').select('*').eq('id', req.params.id).maybeSingle();
+  if (!r) return notFound(res);
+  const b = req.body;
+  const { data, error } = await req.sb.from('recipes').update({
+    title: b.title ?? r.title,
+    notes: b.notes !== undefined ? b.notes : r.notes,
+    ingredients: b.ingredients !== undefined ? cleanIngredients(b.ingredients) : r.ingredients,
+  }).eq('id', r.id).select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.delete('/api/recipes/:id', async (req, res) => {
+  const { data, error } = await req.sb.from('recipes').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+// Push a recipe's ingredients onto the first grocery list.
+app.post('/api/recipes/:id/to-grocery', async (req, res) => {
+  const { data: recipe } = await req.sb.from('recipes').select('*').eq('id', req.params.id).maybeSingle();
+  if (!recipe) return notFound(res);
+  const { data: list } = await req.sb.from('lists').select('id')
+    .eq('type', 'grocery').order('id').limit(1).maybeSingle();
+  if (!list) return bad(res, 'no grocery list exists');
+  const ingredients = cleanIngredients(recipe.ingredients);
+  if (!ingredients.length) return ok(res, { added: 0 });
+  const { data: existing } = await req.sb.from('list_items').select('text,position')
+    .eq('list_id', list.id);
+  const have = new Set((existing || []).map(i => i.text.toLowerCase()));
+  let pos = Math.max(0, ...(existing || []).map(i => i.position));
+  const rows = ingredients.filter(t => !have.has(t.toLowerCase()))
+    .map(t => ({ list_id: list.id, text: t, added_by: recipe.title, position: ++pos }));
+  if (rows.length) {
+    const { error } = await req.sb.from('list_items').insert(rows);
+    if (sendErr(res, error)) return;
+  }
+  ok(res, { added: rows.length, skipped: ingredients.length - rows.length });
+});
+
+// ---------- Rewards ----------
+// Star balance = lifetime chore points earned minus stars spent on rewards.
+
+async function fetchBalances(sb) {
+  const [{ data: comps, error: e1 }, { data: chores, error: e2 }, { data: reds, error: e3 }] =
+    await Promise.all([
+      sb.from('chore_completions').select('chore_id'),
+      sb.from('chores').select('id,member_id,points'),
+      sb.from('redemptions').select('member_id,cost'),
+    ]);
+  if (e1 || e2 || e3) throw (e1 || e2 || e3);
+  const byId = Object.fromEntries((chores || []).map(c => [c.id, c]));
+  const earned = {}, spent = {};
+  for (const cc of comps || []) {
+    const c = byId[cc.chore_id];
+    if (c && c.member_id != null) earned[c.member_id] = (earned[c.member_id] || 0) + c.points;
+  }
+  for (const r of reds || []) spent[r.member_id] = (spent[r.member_id] || 0) + r.cost;
+  const ids = new Set([...Object.keys(earned), ...Object.keys(spent)]);
+  return [...ids].map(id => ({
+    member_id: Number(id),
+    earned: earned[id] || 0,
+    spent: spent[id] || 0,
+    available: (earned[id] || 0) - (spent[id] || 0),
+  }));
+}
+
+app.get('/api/rewards', async (req, res) => {
+  try {
+    const [{ data: rewards, error: e1 }, balances, { data: recent, error: e2 }] = await Promise.all([
+      req.sb.from('rewards').select('*').eq('active', true).order('cost'),
+      fetchBalances(req.sb),
+      req.sb.from('redemptions').select('*').order('id', { ascending: false }).limit(10),
+    ]);
+    if (e1 || e2) throw (e1 || e2);
+    ok(res, { rewards, balances, recent });
+  } catch (e) { sendErr(res, e); }
+});
+
+app.post('/api/rewards', async (req, res) => {
+  const { title, icon, cost } = req.body;
+  if (!title || !title.trim()) return bad(res, 'title is required');
+  const { data, error } = await req.sb.from('rewards')
+    .insert({ title: title.trim(), icon: icon || '🎁', cost: Math.max(1, Number(cost) || 10) })
+    .select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.put('/api/rewards/:id', async (req, res) => {
+  const { data: r } = await req.sb.from('rewards').select('*').eq('id', req.params.id).maybeSingle();
+  if (!r) return notFound(res);
+  const b = req.body;
+  const { data, error } = await req.sb.from('rewards').update({
+    title: b.title ?? r.title,
+    icon: b.icon ?? r.icon,
+    cost: b.cost !== undefined ? Math.max(1, Number(b.cost) || 1) : r.cost,
+    active: b.active !== undefined ? !!b.active : r.active,
+  }).eq('id', r.id).select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.delete('/api/rewards/:id', async (req, res) => {
+  const { data, error } = await req.sb.from('rewards').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+// Redeeming requires the parent login — that's the built-in approval step.
+app.post('/api/rewards/:id/redeem', async (req, res) => {
+  const { member_id } = req.body;
+  if (!member_id) return bad(res, 'member_id is required');
+  const { data: reward } = await req.sb.from('rewards').select('*').eq('id', req.params.id).maybeSingle();
+  if (!reward) return notFound(res);
+  try {
+    const balances = await fetchBalances(req.sb);
+    const bal = balances.find(b => b.member_id === Number(member_id));
+    if (!bal || bal.available < reward.cost) {
+      return bad(res, `Not enough stars (need ${reward.cost}, has ${bal ? bal.available : 0})`);
+    }
+  } catch (e) { return sendErr(res, e); }
+  const { data, error } = await req.sb.from('redemptions').insert({
+    reward_id: reward.id, member_id, title: reward.title, cost: reward.cost,
+    date: new Date().toISOString().slice(0, 10),
+  }).select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+// ---------- Routines ----------
+// Morning/bedtime checklists. Checking items off needs no login (the wall
+// tablet is anonymous); managing routines is parent-only via RLS.
+
+async function fetchRoutines(sb, date) {
+  const [{ data: routines, error: e1 }, { data: items, error: e2 }, { data: comps, error: e3 }] =
+    await Promise.all([
+      sb.from('routines').select('*').eq('active', true).order('start_time'),
+      sb.from('routine_items').select('*').order('position').order('id'),
+      date ? sb.from('routine_completions').select('item_id').eq('date', date)
+           : Promise.resolve({ data: [] }),
+    ]);
+  if (e1 || e2 || e3) throw (e1 || e2 || e3);
+  const done = new Set((comps || []).map(c => c.item_id));
+  return (routines || []).map(r => ({
+    ...r,
+    items: (items || []).filter(i => i.routine_id === r.id)
+      .map(i => ({ ...i, done: done.has(i.id) })),
+  }));
+}
+
+app.get('/api/routines', async (req, res) => {
+  const date = DATE_RE.test(req.query.date || '') ? req.query.date : new Date().toISOString().slice(0, 10);
+  try { ok(res, await fetchRoutines(req.sb, date)); } catch (e) { sendErr(res, e); }
+});
+
+async function replaceRoutineItems(sb, routineId, items) {
+  await sb.from('routine_items').delete().eq('routine_id', routineId);
+  const rows = (Array.isArray(items) ? items : [])
+    .map(i => ({ text: String(i.text || '').trim(), icon: i.icon || '✅' }))
+    .filter(i => i.text)
+    .map((i, idx) => ({ ...i, routine_id: routineId, position: idx }));
+  if (rows.length) {
+    const { error } = await sb.from('routine_items').insert(rows);
+    if (error) throw error;
+  }
+}
+
+app.post('/api/routines', async (req, res) => {
+  const { title, icon, member_id, start_time, end_time, days, items } = req.body;
+  if (!title || !title.trim()) return bad(res, 'title is required');
+  const { data, error } = await req.sb.from('routines').insert({
+    title: title.trim(), icon: icon || '🌅', member_id: member_id || null,
+    start_time: start_time || null, end_time: end_time || null,
+    days: Array.isArray(days) && days.length ? days : [0, 1, 2, 3, 4, 5, 6],
+  }).select().single();
+  if (sendErr(res, error)) return;
+  try { await replaceRoutineItems(req.sb, data.id, items); } catch (e) { return sendErr(res, e); }
+  ok(res, data);
+});
+
+app.put('/api/routines/:id', async (req, res) => {
+  const { data: r } = await req.sb.from('routines').select('*').eq('id', req.params.id).maybeSingle();
+  if (!r) return notFound(res);
+  const b = req.body;
+  const { data, error } = await req.sb.from('routines').update({
+    title: b.title ?? r.title,
+    icon: b.icon ?? r.icon,
+    member_id: b.member_id !== undefined ? b.member_id : r.member_id,
+    start_time: b.start_time !== undefined ? b.start_time : r.start_time,
+    end_time: b.end_time !== undefined ? b.end_time : r.end_time,
+    days: b.days !== undefined ? b.days : r.days,
+    active: b.active !== undefined ? !!b.active : r.active,
+  }).eq('id', r.id).select().single();
+  if (sendErr(res, error)) return;
+  if (b.items !== undefined) {
+    try { await replaceRoutineItems(req.sb, r.id, b.items); } catch (e) { return sendErr(res, e); }
+  }
+  ok(res, data);
+});
+
+app.delete('/api/routines/:id', async (req, res) => {
+  const { data, error } = await req.sb.from('routines').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+app.post('/api/routine-items/:id/toggle', async (req, res) => {
+  const { date } = req.body;
+  if (!DATE_RE.test(date || '')) return bad(res, 'date (YYYY-MM-DD) is required');
+  const { data: item } = await req.sb.from('routine_items').select('id').eq('id', req.params.id).maybeSingle();
+  if (!item) return notFound(res);
+  const { data: existing } = await req.sb.from('routine_completions')
+    .select('id').eq('item_id', item.id).eq('date', date).maybeSingle();
+  if (existing) {
+    const { error } = await req.sb.from('routine_completions').delete().eq('id', existing.id);
+    if (sendErr(res, error)) return;
+    return ok(res, { item_id: item.id, date, done: false });
+  }
+  const { error } = await req.sb.from('routine_completions').insert({ item_id: item.id, date });
+  if (sendErr(res, error)) return;
+  ok(res, { item_id: item.id, date, done: true });
+});
+
+// ---------- Countdowns & Announcements ----------
+
+app.get('/api/countdowns', async (req, res) => {
+  const { data, error } = await req.sb.from('countdowns').select('*').order('date');
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.post('/api/countdowns', async (req, res) => {
+  const { title, icon, date } = req.body;
+  if (!title || !title.trim()) return bad(res, 'title is required');
+  if (!DATE_RE.test(date || '')) return bad(res, 'date (YYYY-MM-DD) is required');
+  const { data, error } = await req.sb.from('countdowns')
+    .insert({ title: title.trim(), icon: icon || '🎉', date }).select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.delete('/api/countdowns/:id', async (req, res) => {
+  const { data, error } = await req.sb.from('countdowns').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+app.get('/api/announcements', async (req, res) => {
+  const { data, error } = await req.sb.from('announcements').select('*').order('id', { ascending: false });
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.post('/api/announcements', async (req, res) => {
+  const { text, icon } = req.body;
+  if (!text || !text.trim()) return bad(res, 'text is required');
+  const { data, error } = await req.sb.from('announcements')
+    .insert({ text: text.trim(), icon: icon || '📣' }).select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.delete('/api/announcements/:id', async (req, res) => {
+  const { data, error } = await req.sb.from('announcements').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+// ---------- Photos (screensaver) ----------
+// Stored in the public 'photos' bucket; uploads/deletes are parent-only
+// (storage RLS), viewing is public.
+
+app.get('/api/photos', async (req, res) => {
+  const { data, error } = await req.sb.storage.from('photos').list('', { limit: 200 });
+  if (sendErr(res, error)) return;
+  const files = (data || []).filter(f => f.name && !f.name.startsWith('.'));
+  ok(res, files.map(f => ({
+    name: f.name,
+    url: `${SUPABASE_URL}/storage/v1/object/public/photos/${encodeURIComponent(f.name)}`,
+  })));
+});
+
+app.post('/api/photos', async (req, res) => {
+  const { name, data, content_type } = req.body;
+  if (!name || !data) return bad(res, 'name and data (base64) are required');
+  const safe = name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+  const key = `${Date.now()}-${safe}`;
+  const buf = Buffer.from(data, 'base64');
+  if (buf.length > 8 * 1024 * 1024) return bad(res, 'photo too large (8 MB max)');
+  const { error } = await req.sb.storage.from('photos')
+    .upload(key, buf, { contentType: content_type || 'image/jpeg' });
+  if (sendErr(res, error)) return;
+  ok(res, { name: key, url: `${SUPABASE_URL}/storage/v1/object/public/photos/${encodeURIComponent(key)}` });
+});
+
+app.delete('/api/photos/:name', async (req, res) => {
+  const { error } = await req.sb.storage.from('photos').remove([req.params.name]);
+  if (sendErr(res, error)) return;
+  ok(res, { deleted: true });
 });
 
 // ---------- Chores ----------
@@ -531,7 +857,7 @@ app.get('/api/dashboard', async (req, res) => {
   const date = DATE_RE.test(req.query.date || '') ? req.query.date : new Date().toISOString().slice(0, 10);
   try {
     const weekday = new Date(date + 'T00:00:00Z').getUTCDay();
-    const [membersR, events, google, meals, chores, compsR, lists] = await Promise.all([
+    const [membersR, events, google, meals, chores, compsR, lists, routines, cdR, annR] = await Promise.all([
       req.sb.from('members').select('*').order('id'),
       fetchExpandedEvents(req.sb, date, date),
       fetchGcalEvents(req.sb, date, date),
@@ -539,8 +865,13 @@ app.get('/api/dashboard', async (req, res) => {
       fetchChores(req.sb),
       req.sb.from('chore_completions').select('chore_id').eq('date', date),
       fetchLists(req.sb, { openOnly: true }),
+      fetchRoutines(req.sb, date),
+      req.sb.from('countdowns').select('*').gte('date', date).order('date').limit(5),
+      req.sb.from('announcements').select('*').order('id', { ascending: false }).limit(3),
     ]);
-    if (membersR.error || meals.error || compsR.error) throw (membersR.error || meals.error || compsR.error);
+    if (membersR.error || meals.error || compsR.error || cdR.error || annR.error) {
+      throw (membersR.error || meals.error || compsR.error || cdR.error || annR.error);
+    }
     const completions = (compsR.data || []).map(r => r.chore_id);
     ok(res, {
       date,
@@ -549,6 +880,9 @@ app.get('/api/dashboard', async (req, res) => {
       meals: meals.data,
       chores: chores.filter(c => c.days.includes(weekday)).map(c => ({ ...c, done: completions.includes(c.id) })),
       lists,
+      routines: routines.filter(r => r.days.includes(weekday)),
+      countdowns: cdR.data,
+      announcements: annR.data,
     });
   } catch (e) { sendErr(res, e); }
 });
