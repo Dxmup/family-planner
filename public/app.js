@@ -179,6 +179,21 @@ function updateParentBtn() {
   btn.title = s ? `Logged in as ${s.email} — tap to log out` : 'Parent login';
 }
 
+// ---------- fullscreen (Fire tablet / Silk has no kiosk mode) ----------
+
+if (document.documentElement.requestFullscreen) {
+  $('#fullscreen-btn').addEventListener('click', () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else document.documentElement.requestFullscreen().catch(() => {});
+  });
+  document.addEventListener('fullscreenchange', () => {
+    $('#fullscreen-btn').querySelector('span:last-child').textContent =
+      document.fullscreenElement ? 'Exit' : 'Full';
+  });
+} else {
+  $('#fullscreen-btn').style.display = 'none';
+}
+
 $('#parent-btn')?.addEventListener('click', async () => {
   if (auth.session) {
     if (confirm(`Log out ${auth.session.email}?`)) { auth.clear(); updateParentBtn(); }
@@ -285,8 +300,8 @@ async function renderToday() {
 
   const grocery = d.lists.find(l => l.type === 'grocery');
   const groceryHtml = grocery && grocery.items.length
-    ? grocery.items.slice(0, 8).map(i => `<div class="list-item"><span class="li-text">• ${esc(i.text)}</span></div>`).join('')
-      + (grocery.items.length > 8 ? `<div class="empty">+${grocery.items.length - 8} more…</div>` : '')
+    ? grocery.items.slice(0, 6).map(i => `<div class="list-item"><span class="li-text">• ${esc(i.text)}</span></div>`).join('')
+      + (grocery.items.length > 6 ? `<div class="empty">+${grocery.items.length - 6} more…</div>` : '')
     : '<div class="empty">List is empty</div>';
 
   const annHtml = (d.announcements || []).length ? `
@@ -310,22 +325,42 @@ async function renderToday() {
       }).join('')}
     </div>` : '';
 
-  const activeRoutines = (d.routines || []).filter(r => r.items.length);
-  const routinesHtml = activeRoutines.map(r => {
+  // Every dashboard card is drag-to-rearrange; the order lives in
+  // localStorage, so the wall tablet and each phone keep their own layout.
+  const HANDLE = '<span class="drag-handle" title="Drag to rearrange">✥</span>';
+  const cards = [
+    { key: 'schedule', html: `<h3>📅 Today's Schedule${HANDLE}</h3>${eventsHtml}` },
+    { key: 'meals', html: `<h3>🍽️ Meals${HANDLE}</h3>${mealsHtml}` },
+    { key: 'grocery', html: `<h3>🛒 ${grocery ? esc(grocery.name) : 'Groceries'}${HANDLE}</h3>${groceryHtml}` },
+    { key: 'chores', html: `<h3>⭐ Today's Chores${HANDLE}</h3>${choresHtml}` },
+  ];
+  for (const r of (d.routines || []).filter(r => r.items.length)) {
     const m = r.member_id ? memberById(r.member_id) : null;
     const doneCount = r.items.filter(i => i.done).length;
     const live = inWindow(r);
-    return `<div class="card routine-card ${live ? '' : 'routine-idle'}">
-      <h3>${esc(r.icon)} ${esc(r.title)}${m ? ` · ${esc(m.avatar)} ${esc(m.name)}` : ''}
-        <span style="margin-left:auto" class="li-by">${doneCount}/${r.items.length}${live ? '' : r.start_time ? ' · at ' + fmtTime(r.start_time) : ''}</span></h3>
+    cards.push({
+      key: `routine-${r.id}`,
+      cls: `routine-card ${live ? '' : 'routine-idle'}`,
+      html: `<h3>${esc(r.icon)} ${esc(r.title)}${m ? ` · ${esc(m.avatar)} ${esc(m.name)}` : ''}
+        <span style="margin-left:auto" class="li-by">${doneCount}/${r.items.length}${live ? '' : r.start_time ? ' · at ' + fmtTime(r.start_time) : ''}</span>${HANDLE}</h3>
       ${doneCount === r.items.length ? '<div class="routine-done-banner">🎉 All done!</div>' : ''}
       ${r.items.map(i => `
         <div class="chore-line ${i.done ? 'done' : ''}">
           <button class="chore-check ${i.done ? 'done' : ''}" data-ritem="${i.id}">${i.done ? '✓' : ''}</button>
           <span>${esc(i.icon)}</span><span class="chore-title">${esc(i.text)}</span>
-        </div>`).join('')}
-    </div>`;
-  }).join('');
+        </div>`).join('')}`,
+    });
+  }
+
+  let order = [];
+  try { order = JSON.parse(localStorage.getItem('fp_today_order')) || []; } catch { /* ignore */ }
+  cards.sort((a, b) => {
+    const ia = order.indexOf(a.key), ib = order.indexOf(b.key);
+    return (ia === -1 ? order.length + cards.indexOf(a) : ia) -
+           (ib === -1 ? order.length + cards.indexOf(b) : ib);
+  });
+  const gridHtml = cards.map(c =>
+    `<div class="card today-card ${c.cls || ''}" data-key="${c.key}">${c.html}</div>`).join('');
 
   $('#main').innerHTML = `
     <div class="view-header">
@@ -341,16 +376,9 @@ async function renderToday() {
     </div>
     ${annHtml}
     ${cdHtml}
-    <div class="today-grid">
-      <div class="card"><h3>📅 Today's Schedule</h3>${eventsHtml}</div>
-      <div>
-        <div class="card" style="margin-bottom:16px"><h3>🍽️ Meals</h3>${mealsHtml}</div>
-        <div class="card"><h3>🛒 ${grocery ? esc(grocery.name) : 'Groceries'}</h3>${groceryHtml}</div>
-      </div>
-      <div class="card"><h3>⭐ Today's Chores</h3>${choresHtml}</div>
-    </div>
-    ${routinesHtml ? `<div class="today-grid" style="margin-top:16px">${routinesHtml}</div>` : ''}`;
+    <div class="today-grid" id="today-grid">${gridHtml}</div>`;
 
+  $$('#today-grid .drag-handle').forEach(h => h.addEventListener('pointerdown', startCardDrag));
   $('#quick-add-event').addEventListener('click', () => eventForm({ date: d.date }));
   $('#add-extra').addEventListener('click', extrasForm);
   $$('.chore-check[data-chore]').forEach(btn => btn.addEventListener('click', async () => {
@@ -371,6 +399,37 @@ async function renderToday() {
     await api.del(`/api/countdowns/${chip.dataset.delCd}`);
     renderToday();
   }));
+}
+
+// Pointer-based card reordering (works for both mouse and touch).
+function startCardDrag(e) {
+  e.preventDefault();
+  const card = e.target.closest('.today-card');
+  const grid = card.parentElement;
+  card.classList.add('dragging');
+  card.setPointerCapture?.(e.pointerId);
+
+  const move = (ev) => {
+    const el = document.elementFromPoint(ev.clientX, ev.clientY);
+    const over = el && el.closest('.today-card:not(.dragging)');
+    if (over && over.parentElement === grid) {
+      const r = over.getBoundingClientRect();
+      const before = ev.clientY < r.top + r.height / 2 ||
+        (ev.clientY < r.bottom && ev.clientX < r.left + r.width / 2);
+      grid.insertBefore(card, before ? over : over.nextSibling);
+    }
+  };
+  const up = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+    document.removeEventListener('pointercancel', up);
+    card.classList.remove('dragging');
+    localStorage.setItem('fp_today_order',
+      JSON.stringify($$('.today-card', grid).map(c => c.dataset.key)));
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', up);
+  document.addEventListener('pointercancel', up);
 }
 
 // Quick-add modal for announcements and countdowns (parent-gated by the API).

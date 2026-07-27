@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#faf7f2">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.json">
 <title>Family Planner</title>
 <link rel="stylesheet" href="style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
@@ -22,7 +25,8 @@
     <button class="nav-btn" data-view="routines"><span class="nav-icon">☀️</span><span>Routines</span></button>
     <button class="nav-btn" data-view="lists"><span class="nav-icon">📝</span><span>Lists</span></button>
     <button class="nav-btn" data-view="family"><span class="nav-icon">👪</span><span>Family</span></button>
-    <button class="nav-btn" id="parent-btn" style="margin-top:auto"><span class="nav-icon">🔒</span><span>Parent</span></button>
+    <button class="nav-btn" id="fullscreen-btn" style="margin-top:auto" title="Full screen"><span class="nav-icon">⛶</span><span>Full</span></button>
+    <button class="nav-btn" id="parent-btn"><span class="nav-icon">🔒</span><span>Parent</span></button>
   </nav>
   <main id="main"></main>
 </div>

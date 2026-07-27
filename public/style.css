@@ -413,3 +413,20 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 #screensaver .ss-clock span { font-size: 26px; font-weight: 700; }
 
 textarea { resize: vertical; }
+
+/* ---------- Draggable dashboard cards ---------- */
+
+.today-grid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1100px) { .today-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px) { .today-grid { grid-template-columns: 1fr; } }
+
+.drag-handle {
+  margin-left: auto; cursor: grab; color: var(--line); font-size: 18px;
+  padding: 2px 6px; touch-action: none; user-select: none;
+}
+.card h3 .li-by + .drag-handle { margin-left: 6px; }
+.today-card:hover .drag-handle { color: var(--muted); }
+.today-card.dragging {
+  opacity: 0.85; outline: 3px dashed var(--accent); outline-offset: -3px;
+  cursor: grabbing; z-index: 5;
+}
