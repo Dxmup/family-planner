@@ -102,6 +102,7 @@ const state = {
   members: [],
   todayFocus: null,              // member id: Today shows only their items
   todayFocusTimer: null,
+  listsFilter: null,             // member id: Lists shows only their tasks
   calMonth: new Date(),          // any date within the displayed month
   calFilter: null,               // member id | 'family' | null (= everyone)
   mealsWeekStart: startOfWeek(new Date()),
@@ -1216,40 +1217,93 @@ function routineForm(r = {}) {
 
 // ---------- Lists ----------
 
+// Due-date badge: red when overdue, highlighted today, muted otherwise.
+function dueBadge(i) {
+  if (!i.due_date) return '';
+  const d = fromYmd(i.due_date);
+  const today = todayStr();
+  const label = `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+  if (i.done) return `<span class="due-badge">${label}</span>`;
+  if (i.due_date < today) return `<span class="due-badge overdue">⚠ ${label}</span>`;
+  if (i.due_date === today) return `<span class="due-badge today">Today</span>`;
+  return `<span class="due-badge">${label}</span>`;
+}
+
 async function renderLists() {
   const lists = await api.get('/api/lists');
+  const filter = state.listsFilter;
 
-  const cards = lists.map(l => `
+  // Person filter: only to-do lists apply (groceries are family-wide).
+  const shown = filter === null ? lists : lists.filter(l => l.type === 'todo');
+
+  const cards = shown.map(l => {
+    const items = filter === null ? l.items : l.items.filter(i => i.member_id === filter);
+    return `
     <div class="card">
       <h3>${l.type === 'grocery' ? '🛒' : '✅'} ${esc(l.name)}
         <span style="margin-left:auto;display:flex;gap:6px">
-          ${l.items.some(i => i.done) ? `<button class="btn ghost small" data-clear="${l.id}">Clear done</button>` : ''}
+          ${items.some(i => i.done) ? `<button class="btn ghost small" data-clear="${l.id}">Clear done</button>` : ''}
           <button class="li-del" data-del-list="${l.id}">🗑️</button>
         </span></h3>
-      ${l.items.map(i => `
+      ${items.map(i => {
+        const m = i.member_id ? memberById(i.member_id) : null;
+        return `
         <div class="list-item ${i.done ? 'done' : ''}">
           <button class="chore-check ${i.done ? 'done' : ''}" data-toggle="${i.id}" data-done="${i.done ? 1 : 0}">${i.done ? '✓' : ''}</button>
-          <span class="li-text">${esc(i.text)}</span>
-          ${i.added_by ? `<span class="li-by">${esc(i.added_by)}</span>` : ''}
+          <span class="li-text" data-edit-task="${i.id}">${esc(i.text)}</span>
+          ${dueBadge(i)}
+          ${m ? `<span class="assignee-chip" style="color:${m.color}" title="${esc(m.name)}">${esc(m.avatar)}</span>`
+              : (i.added_by ? `<span class="li-by">${esc(i.added_by)}</span>` : '')}
           <button class="li-del" data-del-item="${i.id}">✕</button>
-        </div>`).join('') || '<div class="empty">Empty — add something below</div>'}
+        </div>`;
+      }).join('') || `<div class="empty">${filter !== null ? 'Nothing assigned here' : 'Empty — add something below'}</div>`}
       <div class="add-item-row">
-        <input placeholder="Add item…" data-input="${l.id}">
+        <input placeholder="${filter !== null ? `Add task for ${esc(memberById(filter)?.name || '')}…` : 'Add item…'}" data-input="${l.id}">
         <button class="btn small" data-add="${l.id}">Add</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+
+  const chips = `
+    <div class="member-filter" style="margin-bottom:14px">
+      <button class="member-chip ${filter === null ? 'active' : ''}" data-lfilter="">👪 Everyone</button>
+      ${state.members.map(m => `
+        <button class="member-chip ${filter === m.id ? 'active' : ''}" data-lfilter="${m.id}"
+          style="color:${m.color}">${esc(m.avatar)} ${esc(m.name)}</button>`).join('')}
+    </div>`;
 
   $('#main').innerHTML = `
     <div class="view-header">
-      <div class="view-title">Lists</div>
-      <button class="btn" id="add-list">+ New List</button>
+      <div>
+        <div class="view-title">Lists</div>
+        <div class="view-sub">Rolling to-dos — assign tasks, add due dates, keep separate lists per project</div>
+      </div>
+      <div class="header-actions">
+        <button class="btn ghost" id="add-list">+ New List</button>
+        <button class="btn" id="add-task">+ New Task</button>
+      </div>
     </div>
-    <div class="lists-grid">${cards}</div>`;
+    ${chips}
+    <div class="lists-grid">${cards || '<div class="empty" style="font-size:18px">No to-do lists yet — tap "+ New List".</div>'}</div>`;
+
+  $$('[data-lfilter]').forEach(chip => chip.addEventListener('click', () => {
+    const v = chip.dataset.lfilter;
+    state.listsFilter = v === '' || Number(v) === state.listsFilter ? null : Number(v);
+    renderLists();
+  }));
+  $('#add-task').addEventListener('click', () => taskForm(null, lists));
+  $$('[data-edit-task]').forEach(el => el.addEventListener('click', () => {
+    for (const l of lists) {
+      const item = l.items.find(i => i.id === Number(el.dataset.editTask));
+      if (item) return taskForm(item, lists);
+    }
+  }));
 
   const addItem = async (listId) => {
     const input = $(`[data-input="${listId}"]`);
     if (!input.value.trim()) return;
-    await api.post(`/api/lists/${listId}/items`, { text: input.value });
+    // Quick-adds inherit the active person filter as the assignee.
+    await api.post(`/api/lists/${listId}/items`, { text: input.value, member_id: filter });
     renderLists();
   };
   $$('[data-add]').forEach(b => b.addEventListener('click', () => addItem(b.dataset.add)));
@@ -1289,6 +1343,53 @@ async function renderLists() {
       await api.post('/api/lists', { name: $('#f-name').value, type: $('#f-type').value });
       closeModal(); renderLists();
     });
+  });
+}
+
+// Full task form: text, which list, assignee, optional due date.
+function taskForm(item, lists) {
+  const isEdit = !!item;
+  const todoLists = lists.filter(l => l.type === 'todo');
+  const options = (item ? lists : todoLists);
+  const currentList = item ? item.list_id : (todoLists[0]?.id ?? lists[0]?.id);
+  if (currentList === undefined) { alert('Create a list first'); return; }
+  openModal(`
+    <h2>${isEdit ? 'Edit' : 'New'} Task</h2>
+    <div class="form-row"><label>Task</label><input id="f-text" value="${esc(item?.text || '')}" placeholder="Paint the deck"></div>
+    <div class="form-row"><label>List</label>
+      <select id="f-list">${options.map(l =>
+        `<option value="${l.id}" ${l.id === currentList ? 'selected' : ''}>${l.type === 'grocery' ? '🛒' : '✅'} ${esc(l.name)}</option>`).join('')}</select></div>
+    <div class="form-cols">
+      <div class="form-row"><label>Assign to</label>
+        <select id="f-member">${memberSelectOptions(item?.member_id ?? state.listsFilter, 'Anyone')}</select></div>
+      <div class="form-row"><label>Due (optional)</label><input id="f-due" type="date" value="${item?.due_date || ''}"></div>
+    </div>
+    <div class="modal-actions">
+      ${isEdit ? '<button class="btn danger" id="f-delete">Delete</button>' : ''}
+      <span class="spacer"></span>
+      <button class="btn ghost" id="f-cancel">Cancel</button>
+      <button class="btn" id="f-save">Save</button>
+    </div>`);
+  $('#f-text').focus();
+  $('#f-cancel').addEventListener('click', closeModal);
+  if (isEdit) $('#f-delete').addEventListener('click', async () => {
+    if (!confirm('Delete this task?')) return;
+    await api.del(`/api/list-items/${item.id}`);
+    closeModal(); renderLists();
+  });
+  $('#f-save').addEventListener('click', async () => {
+    const body = {
+      text: $('#f-text').value,
+      member_id: $('#f-member').value ? Number($('#f-member').value) : null,
+      due_date: $('#f-due').value || null,
+      list_id: Number($('#f-list').value),
+    };
+    if (!body.text.trim()) { alert('Please enter a task'); return; }
+    try {
+      if (isEdit) await api.put(`/api/list-items/${item.id}`, body);
+      else await api.post(`/api/lists/${body.list_id}/items`, body);
+      closeModal(); renderLists();
+    } catch (e) { alert(e.message); }
   });
 }
 

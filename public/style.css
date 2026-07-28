@@ -445,3 +445,15 @@ textarea { resize: vertical; }
   from { transform: scale(1); }
   to { transform: scale(1.06); }
 }
+
+/* ---------- To-do assignees & due dates ---------- */
+
+.assignee-chip { font-size: 20px; flex-shrink: 0; }
+.list-item .li-text { cursor: pointer; }
+.due-badge {
+  font-size: 12px; font-weight: 700; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 10px; white-space: nowrap; flex-shrink: 0;
+}
+.due-badge.today { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.due-badge.overdue { color: #fff; background: #c85454; border-color: #c85454; }
