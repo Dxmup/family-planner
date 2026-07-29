@@ -262,11 +262,15 @@ button.btn.danger { background: #c85454; }
 
 /* ---------- Lists ---------- */
 
+/* Masonry-style columns: cards pack tightly instead of leaving row gaps
+   when one list is much longer than its neighbors. */
 .lists-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 16px;
-  align-items: start;
+  columns: 340px;
+  column-gap: 16px;
+}
+.lists-grid > .card {
+  break-inside: avoid;
+  margin-bottom: 16px;
 }
 .list-item {
   display: flex; align-items: center; gap: 10px;
