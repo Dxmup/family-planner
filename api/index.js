@@ -787,6 +787,29 @@ app.delete('/api/photos/:name', async (req, res) => {
 
 // ---------- Chores ----------
 
+// Does a chore apply on this date? weekly = its weekdays every week;
+// biweekly = its weekdays on alternating weeks (anchored to anchor_date's
+// week); monthly = one day of the month, clamped to short months.
+function choreAppliesOn(c, dateStr) {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const freq = c.frequency || 'weekly';
+  if (freq === 'monthly') {
+    const daysInMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    return d.getUTCDate() === Math.min(c.month_day || 1, daysInMonth);
+  }
+  if (!c.days.includes(d.getUTCDay())) return false;
+  if (freq === 'biweekly' && c.anchor_date) {
+    const weekStart = (x) => {
+      const t = new Date(x);
+      t.setUTCDate(t.getUTCDate() - t.getUTCDay());
+      return Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
+    };
+    const weeks = Math.round((weekStart(d) - weekStart(new Date(c.anchor_date + 'T00:00:00Z'))) / (7 * 86400000));
+    return ((weeks % 2) + 2) % 2 === 0;
+  }
+  return true;
+}
+
 async function fetchChores(sb) {
   const [{ data: chores, error: e1 }, { data: members, error: e2 }] = await Promise.all([
     sb.from('chores').select('*').eq('active', true).order('member_id').order('id'),
@@ -815,8 +838,13 @@ app.post('/api/chores', async (req, res) => {
   const dayList = Array.isArray(days) && days.length
     ? days.filter(d => Number.isInteger(d) && d >= 0 && d <= 6)
     : [0, 1, 2, 3, 4, 5, 6];
+  const { frequency, anchor_date, month_day } = req.body;
+  const freq = ['weekly', 'biweekly', 'monthly'].includes(frequency) ? frequency : 'weekly';
   const { data, error } = await req.sb.from('chores')
-    .insert({ title: title.trim(), icon: icon || '🧹', member_id: member_id || null, days: dayList, points: points || 1 })
+    .insert({ title: title.trim(), icon: icon || '🧹', member_id: member_id || null, days: dayList, points: points || 1,
+              frequency: freq,
+              anchor_date: freq === 'biweekly' ? (anchor_date || new Date().toISOString().slice(0, 10)) : null,
+              month_day: freq === 'monthly' ? Math.min(31, Math.max(1, Number(month_day) || 1)) : null })
     .select().single();
   if (sendErr(res, error)) return;
   ok(res, data);
@@ -826,6 +854,7 @@ app.put('/api/chores/:id', async (req, res) => {
   const { data: c } = await req.sb.from('chores').select('*').eq('id', req.params.id).maybeSingle();
   if (!c) return notFound(res);
   const b = req.body;
+  const freq = ['weekly', 'biweekly', 'monthly'].includes(b.frequency) ? b.frequency : c.frequency;
   const { data, error } = await req.sb.from('chores').update({
     title: b.title ?? c.title,
     icon: b.icon ?? c.icon,
@@ -833,6 +862,9 @@ app.put('/api/chores/:id', async (req, res) => {
     days: b.days !== undefined ? b.days : c.days,
     points: b.points ?? c.points,
     active: b.active !== undefined ? !!b.active : c.active,
+    frequency: freq,
+    anchor_date: freq === 'biweekly' ? (b.anchor_date ?? c.anchor_date ?? new Date().toISOString().slice(0, 10)) : null,
+    month_day: freq === 'monthly' ? Math.min(31, Math.max(1, Number(b.month_day ?? c.month_day) || 1)) : null,
   }).eq('id', c.id).select().single();
   if (sendErr(res, error)) return;
   ok(res, data);
@@ -1007,7 +1039,7 @@ app.get('/api/dashboard', async (req, res) => {
       members: membersR.data,
       events: sortOccurrences(events.concat(google)),
       meals: meals.data,
-      chores: chores.filter(c => c.days.includes(weekday)).map(c => ({ ...c, done: completions.includes(c.id) })),
+      chores: chores.filter(c => choreAppliesOn(c, date)).map(c => ({ ...c, done: completions.includes(c.id) })),
       lists,
       routines: routines.filter(r => r.days.includes(weekday)),
       countdowns: cdR.data,

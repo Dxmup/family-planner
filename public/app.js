@@ -1033,6 +1033,23 @@ function recipeForm(r = {}) {
 
 // ---------- Chores ----------
 
+// Client-side twin of the server's chore recurrence check (local dates).
+function choreApplies(c, d) {
+  const freq = c.frequency || 'weekly';
+  if (freq === 'monthly') {
+    const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return d.getDate() === Math.min(c.month_day || 1, daysInMonth);
+  }
+  if (!c.days.includes(d.getDay())) return false;
+  if (freq === 'biweekly' && c.anchor_date) {
+    const weeks = Math.round((startOfWeek(d) - startOfWeek(fromYmd(c.anchor_date))) / (7 * 86400000));
+    return ((weeks % 2) + 2) % 2 === 0;
+  }
+  return true;
+}
+
+const FREQ_LABEL = { weekly: '', biweekly: 'every other week', monthly: 'monthly' };
+
 async function renderChores() {
   const start = state.choresWeekStart;
   const end = addDays(start, 6);
@@ -1062,11 +1079,12 @@ async function renderChores() {
   const blocks = groups.map(g => {
     const rows = g.chores.map(c => {
       let cells = `<div class="chore-row-title"><span class="ic">${esc(c.icon)}</span> ${esc(c.title)}
+        ${FREQ_LABEL[c.frequency] ? `<span class="li-by">${FREQ_LABEL[c.frequency]}</span>` : ''}
         <button class="li-del" data-edit-chore="${c.id}" title="Edit">✏️</button></div>`;
       for (let i = 0; i < 7; i++) {
         const d = addDays(start, i);
         const ds = ymd(d);
-        const applies = c.days.includes(d.getDay());
+        const applies = choreApplies(c, d);
         const done = doneSet.has(`${c.id}|${ds}`);
         cells += applies
           ? `<div class="chore-grid-cell ${done ? 'done' : ''}" data-chore="${c.id}" data-date="${ds}">${done ? '⭐' : ''}</div>`
@@ -1226,9 +1244,25 @@ function choreForm(chore = {}) {
         `<button class="emoji-opt ${(chore.icon || '🧹') === i ? 'on' : ''}" data-emoji="${i}">${i}</button>`).join('')}</div>
     </div>
     <div class="form-row"><label>Assigned to</label><select id="f-member">${memberSelectOptions(chore.member_id, 'Anyone')}</select></div>
-    <div class="form-row"><label>Days</label>
+    <div class="form-row"><label>Repeats</label>
+      <select id="f-freq">
+        <option value="weekly" ${(chore.frequency || 'weekly') === 'weekly' ? 'selected' : ''}>Every week</option>
+        <option value="biweekly" ${chore.frequency === 'biweekly' ? 'selected' : ''}>Every other week</option>
+        <option value="monthly" ${chore.frequency === 'monthly' ? 'selected' : ''}>Monthly</option>
+      </select>
+    </div>
+    <div class="form-row" id="row-days"><label>Days</label>
       <div class="day-picker">${DOW.map((d, i) =>
         `<button class="day-pick ${days.includes(i) ? 'on' : ''}" data-day="${i}">${d[0]}</button>`).join('')}</div>
+    </div>
+    <div class="form-row" id="row-anchor" style="display:none"><label>Starting</label>
+      <select id="f-anchor">
+        <option value="this">This week</option>
+        <option value="next">Next week</option>
+      </select>
+    </div>
+    <div class="form-row" id="row-mday" style="display:none"><label>Day of month</label>
+      <input id="f-mday" type="number" min="1" max="31" value="${chore.month_day || new Date().getDate()}">
     </div>
     <div class="form-row"><label>Stars (points)</label><input id="f-points" type="number" min="1" max="10" value="${chore.points || 1}"></div>
     <div class="modal-actions">
@@ -1243,6 +1277,14 @@ function choreForm(chore = {}) {
     b.classList.add('on');
   }));
   $$('#modal .day-pick').forEach(b => b.addEventListener('click', () => b.classList.toggle('on')));
+  const syncFreqRows = () => {
+    const f = $('#f-freq').value;
+    $('#row-days').style.display = f === 'monthly' ? 'none' : '';
+    $('#row-anchor').style.display = f === 'biweekly' ? '' : 'none';
+    $('#row-mday').style.display = f === 'monthly' ? '' : 'none';
+  };
+  $('#f-freq').addEventListener('change', syncFreqRows);
+  syncFreqRows();
   $('#f-cancel').addEventListener('click', closeModal);
   if (isEdit) $('#f-delete').addEventListener('click', async () => {
     if (!confirm('Delete this chore and its history?')) return;
@@ -1250,15 +1292,23 @@ function choreForm(chore = {}) {
     closeModal(); renderChores();
   });
   $('#f-save').addEventListener('click', async () => {
+    const freq = $('#f-freq').value;
     const body = {
       title: $('#f-title').value,
       icon: $('#modal .emoji-opt.on')?.dataset.emoji || '🧹',
       member_id: $('#f-member').value ? Number($('#f-member').value) : null,
       days: $$('#modal .day-pick.on').map(b => Number(b.dataset.day)),
       points: Number($('#f-points').value) || 1,
+      frequency: freq,
+      month_day: Number($('#f-mday').value) || 1,
+      // biweekly anchors to the week being viewed (or the next one)
+      anchor_date: freq === 'biweekly'
+        ? ymd(addDays(state.choresWeekStart, $('#f-anchor').value === 'next' ? 7 : 0))
+        : null,
     };
     if (!body.title.trim()) { alert('Please enter a chore name'); return; }
-    if (!body.days.length) { alert('Pick at least one day'); return; }
+    if (freq !== 'monthly' && !body.days.length) { alert('Pick at least one day'); return; }
+    if (freq === 'monthly') body.days = [0, 1, 2, 3, 4, 5, 6];
     try {
       if (isEdit) await api.put(`/api/chores/${chore.id}`, body);
       else await api.post('/api/chores', body);
