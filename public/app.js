@@ -343,7 +343,8 @@ async function renderToday() {
   const mealOrder = MEAL_TYPES.filter(t => d.meals.some(m => m.meal_type === t));
   const mealsHtml = mealOrder.length ? mealOrder.map(t => {
     const m = d.meals.find(x => x.meal_type === t);
-    return `<div class="meal-line"><span class="meal-label">${t}</span><span>${esc(m.title)}</span></div>`;
+    return `<div class="meal-line ${m.recipe_id ? 'has-recipe' : ''}" ${m.recipe_id ? `data-recipe="${m.recipe_id}"` : ''}>
+      <span class="meal-label">${t}</span><span>${esc(m.title)}${m.recipe_id ? ' <span class="li-by">📖</span>' : ''}</span></div>`;
   }).join('') : '<div class="empty">Nothing planned yet</div>';
 
   const choresHtml = d.chores.length ? d.chores.map(c => `
@@ -489,6 +490,37 @@ async function renderToday() {
     await api.del(`/api/countdowns/${chip.dataset.delCd}`);
     renderToday();
   }));
+  $$('[data-recipe]').forEach(el => el.addEventListener('click', async () => {
+    try {
+      const recipes = await api.get('/api/recipes');
+      const r = recipes.find(x => x.id === Number(el.dataset.recipe));
+      if (r) recipeView(r);
+    } catch (e) { alert(e.message); }
+  }));
+}
+
+// Read-only recipe card: ingredients + method, with a push-to-groceries button.
+function recipeView(r) {
+  openModal(`
+    <h2>📖 ${esc(r.title)}</h2>
+    ${(r.ingredients || []).length ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:8px 0 6px">Ingredients</h3>
+      ${r.ingredients.map(i => `<div class="list-item" style="padding:5px 4px"><span class="li-text">• ${esc(i)}</span></div>`).join('')}` : ''}
+    ${r.notes ? `
+      <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:14px 0 6px">Method</h3>
+      <div class="li-notes" style="font-size:15px;color:var(--ink)">${esc(r.notes)}</div>` : ''}
+    <div class="modal-actions">
+      ${(r.ingredients || []).length ? `<button class="btn ghost" id="r-grocery">🛒 Add to Groceries</button>` : ''}
+      <span class="spacer"></span>
+      <button class="btn" id="r-close">Close</button>
+    </div>`);
+  $('#r-close').addEventListener('click', closeModal);
+  $('#r-grocery')?.addEventListener('click', async () => {
+    try {
+      const res = await api.post(`/api/recipes/${r.id}/to-grocery`, {});
+      $('#r-grocery').textContent = `✓ Added ${res.added}${res.skipped ? ` (${res.skipped} already listed)` : ''}`;
+    } catch (e) { alert(e.message); }
+  });
 }
 
 // Pointer-based card reordering (works for both mouse and touch).

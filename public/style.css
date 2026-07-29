@@ -500,3 +500,6 @@ textarea { resize: vertical; }
   #modal { padding: 18px; max-height: 92vh; }
   .form-cols { flex-direction: column; gap: 0; }
 }
+
+.meal-line.has-recipe { cursor: pointer; border-radius: 10px; }
+.meal-line.has-recipe:active { background: var(--accent-soft); }
