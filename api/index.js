@@ -420,6 +420,94 @@ app.post('/api/recipes/:id/to-grocery', async (req, res) => {
   ok(res, { added: rows.length, skipped: ingredients.length - rows.length });
 });
 
+// ---------- Meal plans ----------
+// A named, ordered queue of meals; "apply" pours it into a week's slots.
+
+async function fetchMealPlans(sb) {
+  const [{ data: plans, error: e1 }, { data: items, error: e2 }] = await Promise.all([
+    sb.from('meal_plans').select('*').order('name'),
+    sb.from('meal_plan_items').select('*').order('position').order('id'),
+  ]);
+  if (e1 || e2) throw (e1 || e2);
+  return (plans || []).map(p => ({ ...p, items: (items || []).filter(i => i.plan_id === p.id) }));
+}
+
+async function replacePlanItems(sb, planId, items) {
+  await sb.from('meal_plan_items').delete().eq('plan_id', planId);
+  const rows = (Array.isArray(items) ? items : [])
+    .map(i => ({
+      title: String(i.title || '').trim(),
+      meal_type: ['breakfast', 'lunch', 'dinner', 'snack'].includes(i.meal_type) ? i.meal_type : 'dinner',
+      recipe_id: i.recipe_id || null,
+    }))
+    .filter(i => i.title)
+    .map((i, idx) => ({ ...i, plan_id: planId, position: idx }));
+  if (rows.length) {
+    const { error } = await sb.from('meal_plan_items').insert(rows);
+    if (error) throw error;
+  }
+}
+
+app.get('/api/meal-plans', async (req, res) => {
+  try { ok(res, await fetchMealPlans(req.sb)); } catch (e) { sendErr(res, e); }
+});
+
+app.post('/api/meal-plans', async (req, res) => {
+  const { name, icon, items } = req.body;
+  if (!name || !name.trim()) return bad(res, 'name is required');
+  const { data, error } = await req.sb.from('meal_plans')
+    .insert({ name: name.trim(), icon: icon || '📋' }).select().single();
+  if (sendErr(res, error)) return;
+  try { await replacePlanItems(req.sb, data.id, items); } catch (e) { return sendErr(res, e); }
+  ok(res, data);
+});
+
+app.put('/api/meal-plans/:id', async (req, res) => {
+  const { data: p } = await req.sb.from('meal_plans').select('*').eq('id', req.params.id).maybeSingle();
+  if (!p) return notFound(res);
+  const b = req.body;
+  const { data, error } = await req.sb.from('meal_plans')
+    .update({ name: b.name ?? p.name, icon: b.icon ?? p.icon }).eq('id', p.id).select().single();
+  if (sendErr(res, error)) return;
+  if (b.items !== undefined) {
+    try { await replacePlanItems(req.sb, p.id, b.items); } catch (e) { return sendErr(res, e); }
+  }
+  ok(res, data);
+});
+
+app.delete('/api/meal-plans/:id', async (req, res) => {
+  const { data, error } = await req.sb.from('meal_plans').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+// Fill a week: items of each meal type land on consecutive days starting
+// Monday of the given week (week_start = the displayed Sunday). Existing
+// slots on those days are overwritten.
+app.post('/api/meal-plans/:id/apply', async (req, res) => {
+  const { week_start } = req.body;
+  if (!DATE_RE.test(week_start || '')) return bad(res, 'week_start (YYYY-MM-DD) is required');
+  try {
+    const plans = await fetchMealPlans(req.sb);
+    const plan = plans.find(p => p.id === Number(req.params.id));
+    if (!plan) return notFound(res);
+    const base = new Date(week_start + 'T00:00:00Z');
+    const counters = {};
+    const filled = [];
+    for (const item of plan.items) {
+      const offset = 1 + (counters[item.meal_type] = (counters[item.meal_type] ?? -1) + 1); // Mon onward
+      if (offset > 7) continue;
+      const d = new Date(base.getTime() + offset * 86400000).toISOString().slice(0, 10);
+      const { error } = await req.sb.from('meals')
+        .upsert({ date: d, meal_type: item.meal_type, title: item.title, notes: null, recipe_id: item.recipe_id },
+                { onConflict: 'date,meal_type' });
+      if (error) throw error;
+      filled.push({ date: d, meal_type: item.meal_type, title: item.title });
+    }
+    ok(res, { applied: plan.name, filled });
+  } catch (e) { sendErr(res, e); }
+});
+
 // ---------- Rewards ----------
 // Star balance = lifetime chore points earned minus stars spent on rewards.
 
@@ -656,11 +744,26 @@ app.delete('/api/announcements/:id', async (req, res) => {
 app.get('/api/photos', async (req, res) => {
   const { data, error } = await req.sb.storage.from('photos').list('', { limit: 200 });
   if (sendErr(res, error)) return;
-  const files = (data || []).filter(f => f.name && !f.name.startsWith('.'));
+  // f.id filters out folders (e.g. tasks/ attachments live outside the slideshow)
+  const files = (data || []).filter(f => f.id && f.name && !f.name.startsWith('.'));
   ok(res, files.map(f => ({
     name: f.name,
     url: `${SUPABASE_URL}/storage/v1/object/public/photos/${encodeURIComponent(f.name)}`,
   })));
+});
+
+// Task attachments: same bucket, tasks/ prefix so the screensaver ignores them.
+app.post('/api/task-images', async (req, res) => {
+  const { name, data, content_type } = req.body;
+  if (!name || !data) return bad(res, 'name and data (base64) are required');
+  const safe = name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-80);
+  const key = `tasks/${Date.now()}-${safe}`;
+  const buf = Buffer.from(data, 'base64');
+  if (buf.length > 8 * 1024 * 1024) return bad(res, 'photo too large (8 MB max)');
+  const { error } = await req.sb.storage.from('photos')
+    .upload(key, buf, { contentType: content_type || 'image/jpeg' });
+  if (sendErr(res, error)) return;
+  ok(res, { url: `${SUPABASE_URL}/storage/v1/object/public/photos/${key}` });
 });
 
 app.post('/api/photos', async (req, res) => {
@@ -816,15 +919,16 @@ app.delete('/api/lists/:id', async (req, res) => {
 app.post('/api/lists/:id/items', async (req, res) => {
   const { data: list } = await req.sb.from('lists').select('id').eq('id', req.params.id).maybeSingle();
   if (!list) return notFound(res);
-  const { text, added_by, member_id, due_date, notes } = req.body;
-  if (!text || !text.trim()) return bad(res, 'text is required');
+  const { text, added_by, member_id, due_date, notes, image_url } = req.body;
+  if ((!text || !text.trim()) && !image_url) return bad(res, 'text or a photo is required');
   if (due_date && !DATE_RE.test(due_date)) return bad(res, 'due_date must be YYYY-MM-DD');
   const { data: top } = await req.sb.from('list_items').select('position')
     .eq('list_id', list.id).order('position', { ascending: false }).limit(1).maybeSingle();
   const { data, error } = await req.sb.from('list_items')
-    .insert({ list_id: list.id, text: text.trim(), added_by: added_by || null,
+    .insert({ list_id: list.id, text: (text || '').trim(), added_by: added_by || null,
               member_id: member_id || null, due_date: due_date || null,
               notes: (notes || '').trim() || null,
+              image_url: image_url || null,
               position: (top?.position || 0) + 1 })
     .select().single();
   if (sendErr(res, error)) return;
@@ -849,6 +953,7 @@ app.put('/api/list-items/:id', async (req, res) => {
       member_id: b.member_id !== undefined ? b.member_id : item.member_id,
       due_date: b.due_date !== undefined ? (b.due_date || null) : item.due_date,
       notes: b.notes !== undefined ? ((b.notes || '').trim() || null) : item.notes,
+      image_url: b.image_url !== undefined ? (b.image_url || null) : item.image_url,
       list_id: b.list_id !== undefined ? b.list_id : item.list_id,
     })
     .eq('id', item.id).select().single();

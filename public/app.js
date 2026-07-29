@@ -398,7 +398,8 @@ async function renderToday() {
       const m = t.member_id ? memberById(t.member_id) : null;
       return `<div class="list-item">
         <button class="chore-check" data-done-task="${t.id}"></button>
-        <span class="li-text">${esc(t.text)}${t.notes ? `<div class="li-notes">${esc(t.notes)}</div>` : ''}</span>
+        ${t.image_url ? `<img class="task-thumb" src="${t.image_url}" data-view-image="${t.image_url}" loading="lazy">` : ''}
+        <span class="li-text">${esc(t.text) || (t.image_url ? '<span class="li-by">📷 photo note</span>' : '')}${t.notes ? `<div class="li-notes">${esc(t.notes)}</div>` : ''}</span>
         ${dueBadge(t)}
         ${m ? `<span class="assignee-chip" style="color:${m.color}" title="${esc(m.name)}">${esc(m.avatar)}</span>` : ''}
         ${t.list_name ? `<span class="li-by">${esc(t.list_name)}</span>` : ''}
@@ -480,6 +481,8 @@ async function renderToday() {
       renderToday();
     } catch (e) { alert(e.message); }
   }));
+  $$('#today-grid [data-view-image]').forEach(img => img.addEventListener('click', () =>
+    imageView(img.dataset.viewImage)));
   $$('[data-del-ann]').forEach(b => b.addEventListener('click', async () => {
     if (!confirm('Remove this announcement?')) return;
     await api.del(`/api/announcements/${b.dataset.delAnn}`);
@@ -802,12 +805,17 @@ async function renderMeals() {
       </div>
       <div class="header-actions">
         <div class="view-sub">${MONTHS[start.getMonth()].slice(0, 3)} ${start.getDate()} – ${MONTHS[end.getMonth()].slice(0, 3)} ${end.getDate()}</div>
+        <button class="btn ghost" id="meal-plans">📋 Meal Plans</button>
         <button class="btn ghost" id="recipe-box">📖 Recipe Box</button>
       </div>
     </div>
     <div class="week-grid">${heads.join('')}${rows}</div>`;
 
   $('#recipe-box').addEventListener('click', () => recipeBox(recipes));
+  $('#meal-plans').addEventListener('click', async () => {
+    try { mealPlansBox(await api.get('/api/meal-plans'), recipes); }
+    catch (e) { alert(e.message); }
+  });
 
   $('#wk-prev').addEventListener('click', () => { state.mealsWeekStart = addDays(start, -7); renderMeals(); });
   $('#wk-next').addEventListener('click', () => { state.mealsWeekStart = addDays(start, 7); renderMeals(); });
@@ -877,6 +885,83 @@ async function renderMeals() {
     $('#f-save').addEventListener('click', () => save($('#f-meal').value));
     $('#f-meal').addEventListener('keydown', e => { if (e.key === 'Enter') save($('#f-meal').value); });
   }));
+}
+
+// ---------- Meal plans ----------
+
+function mealPlansBox(plans, recipes) {
+  const rows = plans.length ? plans.map(p => `
+    <div class="list-item">
+      <span class="li-text"><b>${esc(p.icon)} ${esc(p.name)}</b>
+        <div class="li-notes">${p.items.map(i => esc(i.title)).join(' · ') || 'empty'}</div></span>
+      <button class="btn small" data-apply-plan="${p.id}">Apply</button>
+      <button class="btn ghost small" data-edit-plan="${p.id}">Edit</button>
+    </div>`).join('') : '<div class="empty">No meal plans yet.</div>';
+
+  openModal(`
+    <h2>📋 Meal Plans</h2>
+    <p class="view-sub" style="margin-bottom:10px">Applying a plan fills this week's slots (Monday onward), replacing anything already there.</p>
+    ${rows}
+    <div class="modal-actions">
+      <button class="btn ghost" id="m-close">Close</button>
+      <button class="btn" id="m-add">+ New Plan</button>
+    </div>`);
+  $('#m-close').addEventListener('click', closeModal);
+  $('#m-add').addEventListener('click', () => planForm(null, recipes));
+  $$('#modal [data-edit-plan]').forEach(b => b.addEventListener('click', () =>
+    planForm(plans.find(p => p.id === Number(b.dataset.editPlan)), recipes)));
+  $$('#modal [data-apply-plan]').forEach(b => b.addEventListener('click', async () => {
+    const p = plans.find(x => x.id === Number(b.dataset.applyPlan));
+    if (!confirm(`Fill this week with "${p.name}"? Existing meals on those days are replaced.`)) return;
+    try {
+      const r = await api.post(`/api/meal-plans/${p.id}/apply`, { week_start: ymd(state.mealsWeekStart) });
+      closeModal(); renderMeals();
+      setTimeout(() => alert(`${r.applied}: filled ${r.filled.length} meal${r.filled.length === 1 ? '' : 's'} this week`), 50);
+    } catch (e) { alert(e.message); }
+  }));
+}
+
+const PLAN_LINE_RE = /^(breakfast|lunch|dinner|snack)\s*:\s*/i;
+
+function planForm(plan, recipes) {
+  const isEdit = !!plan;
+  const linesText = (plan?.items || [])
+    .map(i => (i.meal_type === 'dinner' ? '' : i.meal_type + ': ') + i.title).join('\n');
+  openModal(`
+    <h2>${isEdit ? 'Edit' : 'New'} Meal Plan</h2>
+    <div class="form-row"><label>Name</label><input id="f-name" value="${esc(plan?.name || '')}" placeholder="Week E — Thai / SE Asia"></div>
+    <div class="form-row"><label>Meals, one per line (in order)</label>
+      <textarea id="f-items" rows="7" placeholder="Mild Thai Coconut Chicken Curry\nFamily Pad Thai\nlunch: Freezer Quesadillas">${esc(linesText)}</textarea>
+      <div class="li-by" style="margin-top:6px">Lines are dinners unless prefixed ("lunch: …"). Titles that match the recipe box link automatically.</div>
+    </div>
+    <div class="modal-actions">
+      ${isEdit ? '<button class="btn danger" id="f-delete">Delete</button>' : ''}
+      <span class="spacer"></span>
+      <button class="btn ghost" id="f-cancel">Cancel</button>
+      <button class="btn" id="f-save">Save</button>
+    </div>`);
+  $('#f-cancel').addEventListener('click', closeModal);
+  if (isEdit) $('#f-delete').addEventListener('click', async () => {
+    if (!confirm('Delete this meal plan? Planned weeks keep their meals.')) return;
+    await api.del(`/api/meal-plans/${plan.id}`);
+    closeModal(); renderMeals();
+  });
+  $('#f-save').addEventListener('click', async () => {
+    const items = $('#f-items').value.split('\n').map(s => s.trim()).filter(Boolean).map(line => {
+      const m = line.match(PLAN_LINE_RE);
+      const title = line.replace(PLAN_LINE_RE, '').trim();
+      const recipe = recipes.find(r => r.title.toLowerCase() === title.toLowerCase());
+      return { title, meal_type: m ? m[1].toLowerCase() : 'dinner', recipe_id: recipe?.id || null };
+    });
+    const body = { name: $('#f-name').value, items };
+    if (!body.name.trim()) { alert('Please enter a name'); return; }
+    if (!items.length) { alert('Add at least one meal'); return; }
+    try {
+      if (isEdit) await api.put(`/api/meal-plans/${plan.id}`, body);
+      else await api.post('/api/meal-plans', body);
+      closeModal(); renderMeals();
+    } catch (e) { alert(e.message); }
+  });
 }
 
 // ---------- Recipe box ----------
@@ -1311,7 +1396,8 @@ async function renderLists() {
         return `
         <div class="list-item ${i.done ? 'done' : ''}">
           <button class="chore-check ${i.done ? 'done' : ''}" data-toggle="${i.id}" data-done="${i.done ? 1 : 0}">${i.done ? '✓' : ''}</button>
-          <span class="li-text" data-edit-task="${i.id}">${esc(i.text)}${i.notes ? `<div class="li-notes">${esc(i.notes)}</div>` : ''}</span>
+          ${i.image_url ? `<img class="task-thumb" src="${i.image_url}" data-view-image="${i.image_url}" loading="lazy">` : ''}
+          <span class="li-text" data-edit-task="${i.id}">${esc(i.text) || (i.image_url ? '<span class="li-by">📷 photo note</span>' : '')}${i.notes ? `<div class="li-notes">${esc(i.notes)}</div>` : ''}</span>
           ${dueBadge(i)}
           ${m ? `<span class="assignee-chip" style="color:${m.color}" title="${esc(m.name)}">${esc(m.avatar)}</span>`
               : (i.added_by ? `<span class="li-by">${esc(i.added_by)}</span>` : '')}
@@ -1320,6 +1406,7 @@ async function renderLists() {
       }).join('') || `<div class="empty">${filter !== null ? 'Nothing assigned here' : 'Empty — add something below'}</div>`}
       <div class="add-item-row">
         <input placeholder="${filter !== null ? `Add task for ${esc(memberById(filter)?.name || '')}…` : 'Add item…'}" data-input="${l.id}" autocomplete="off" autocorrect="off" name="new-item-${l.id}">
+        <button class="btn ghost small" data-snap="${l.id}" title="Snap a photo instead of typing">📷</button>
         <button class="btn small" data-add="${l.id}">Add</button>
       </div>
     </div>`;
@@ -1371,6 +1458,30 @@ async function renderLists() {
   $$('[data-input]').forEach(inp => inp.addEventListener('keydown', e => {
     if (e.key === 'Enter') addItem(inp.dataset.input);
   }));
+  $$('[data-view-image]').forEach(img => img.addEventListener('click', () =>
+    imageView(img.dataset.viewImage)));
+  // 📷 quick capture: photo becomes the task, no typing required.
+  $$('[data-snap]').forEach(b => b.addEventListener('click', () => {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'image/*';
+    picker.setAttribute('capture', 'environment');
+    picker.addEventListener('change', async () => {
+      if (!picker.files[0]) return;
+      try {
+        b.textContent = '…';
+        const photo = await preparePhoto(picker.files[0]);
+        const { url } = await api.post('/api/task-images', photo);
+        await api.post(`/api/lists/${b.dataset.snap}/items`, {
+          text: $(`[data-input="${b.dataset.snap}"]`).value,
+          image_url: url,
+          member_id: filter,
+        });
+        renderLists();
+      } catch (e) { alert(e.message); b.textContent = '📷'; }
+    });
+    picker.click();
+  }));
   $$('[data-toggle]').forEach(b => b.addEventListener('click', async () => {
     await api.put(`/api/list-items/${b.dataset.toggle}`, { done: b.dataset.done !== '1' });
     renderLists();
@@ -1419,6 +1530,13 @@ function taskForm(item, lists) {
     <div class="form-row"><label>Task</label><input id="f-text" value="${esc(item?.text || '')}" placeholder="Paint the deck" autocomplete="off"></div>
     <div class="form-row"><label>Details (optional)</label>
       <textarea id="f-notes" rows="3" placeholder="Sand first, use the leftover stain from the shed" autocomplete="off">${esc(item?.notes || '')}</textarea></div>
+    <div class="form-row"><label>Photo (optional)</label>
+      <div id="f-photo-area">
+        ${item?.image_url
+          ? `<img class="task-thumb-lg" src="${item.image_url}"> <button class="btn ghost small" id="f-photo-remove">Remove</button>`
+          : `<button class="btn ghost small" id="f-photo-add">📷 Attach photo</button>`}
+      </div>
+    </div>
     <div class="form-row"><label>List</label>
       <select id="f-list">${options.map(l =>
         `<option value="${l.id}" ${l.id === currentList ? 'selected' : ''}>${l.type === 'grocery' ? '🛒' : '✅'} ${esc(l.name)}</option>`).join('')}</select></div>
@@ -1435,6 +1553,39 @@ function taskForm(item, lists) {
     </div>`);
   $('#f-text').focus();
   $('#f-cancel').addEventListener('click', closeModal);
+
+  let imageUrl = item?.image_url || null;
+  const wirePhotoArea = () => {
+    $('#f-photo-remove')?.addEventListener('click', () => {
+      imageUrl = null;
+      $('#f-photo-area').innerHTML = `<button class="btn ghost small" id="f-photo-add">📷 Attach photo</button>`;
+      wirePhotoArea();
+    });
+    $('#f-photo-add')?.addEventListener('click', () => {
+      const picker = document.createElement('input');
+      picker.type = 'file';
+      picker.accept = 'image/*';
+      picker.addEventListener('change', async () => {
+        if (!picker.files[0]) return;
+        try {
+          $('#f-photo-area').innerHTML = 'Uploading…';
+          const photo = await preparePhoto(picker.files[0]);
+          const r = await api.post('/api/task-images', photo);
+          imageUrl = r.url;
+          $('#f-photo-area').innerHTML =
+            `<img class="task-thumb-lg" src="${imageUrl}"> <button class="btn ghost small" id="f-photo-remove">Remove</button>`;
+          wirePhotoArea();
+        } catch (e) {
+          alert(e.message);
+          $('#f-photo-area').innerHTML = `<button class="btn ghost small" id="f-photo-add">📷 Attach photo</button>`;
+          wirePhotoArea();
+        }
+      });
+      picker.click();
+    });
+  };
+  wirePhotoArea();
+
   if (isEdit) $('#f-delete').addEventListener('click', async () => {
     if (!confirm('Delete this task?')) return;
     await api.del(`/api/list-items/${item.id}`);
@@ -1444,17 +1595,26 @@ function taskForm(item, lists) {
     const body = {
       text: $('#f-text').value,
       notes: $('#f-notes').value,
+      image_url: imageUrl,
       member_id: $('#f-member').value ? Number($('#f-member').value) : null,
       due_date: $('#f-due').value || null,
       list_id: Number($('#f-list').value),
     };
-    if (!body.text.trim()) { alert('Please enter a task'); return; }
+    if (!body.text.trim() && !imageUrl) { alert('Enter a task or attach a photo'); return; }
     try {
       if (isEdit) await api.put(`/api/list-items/${item.id}`, body);
       else await api.post(`/api/lists/${body.list_id}/items`, body);
       closeModal(); renderLists();
     } catch (e) { alert(e.message); }
   });
+}
+
+// Full-screen-ish viewer for task photos.
+function imageView(url) {
+  openModal(`
+    <img src="${url}" style="width:100%;border-radius:12px">
+    <div class="modal-actions"><button class="btn" id="iv-close">Close</button></div>`);
+  $('#iv-close').addEventListener('click', closeModal);
 }
 
 // ---------- Family ----------

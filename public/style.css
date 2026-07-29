@@ -503,3 +503,14 @@ textarea { resize: vertical; }
 
 .meal-line.has-recipe { cursor: pointer; border-radius: 10px; }
 .meal-line.has-recipe:active { background: var(--accent-soft); }
+
+/* ---------- Task photos ---------- */
+
+.task-thumb {
+  width: 46px; height: 46px; object-fit: cover; border-radius: 10px;
+  flex-shrink: 0; cursor: pointer; border: 1px solid var(--line);
+}
+.task-thumb-lg {
+  max-width: 160px; max-height: 120px; object-fit: cover; border-radius: 12px;
+  border: 1px solid var(--line); vertical-align: middle; margin-right: 10px;
+}
