@@ -883,7 +883,8 @@ function recipeForm(r = {}) {
     <div class="form-row"><label>Name</label><input id="f-title" value="${esc(r.title || '')}" placeholder="Taco night"></div>
     <div class="form-row"><label>Ingredients (one per line)</label>
       <textarea id="f-ingredients" rows="6">${esc((r.ingredients || []).join('\n'))}</textarea></div>
-    <div class="form-row"><label>Notes (optional)</label><input id="f-notes" value="${esc(r.notes || '')}"></div>
+    <div class="form-row"><label>Notes / method (optional)</label>
+      <textarea id="f-notes" rows="8">${esc(r.notes || '')}</textarea></div>
     <div class="modal-actions">
       <button class="btn ghost" id="f-cancel">Cancel</button>
       <button class="btn" id="f-save">Save</button>
