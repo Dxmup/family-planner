@@ -23,7 +23,9 @@ body {
   user-select: none;
 }
 
-#app { display: flex; height: 100vh; }
+/* dvh tracks the real visible viewport on mobile (vh hides the bottom nav
+   behind browser chrome); vh remains as fallback for older browsers */
+#app { display: flex; height: 100vh; height: 100dvh; }
 
 /* ---------- Sidebar ---------- */
 
@@ -473,12 +475,16 @@ textarea { resize: vertical; }
     flex-direction: row;
     width: 100%;
     padding: 4px 6px;
+    /* keep the nav above gesture bars / rounded corners */
+    padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
     border-right: none;
     border-top: 1px solid var(--line);
     overflow-x: auto;
+    flex-shrink: 0;
     gap: 2px;
   }
   #clock { display: none; }
+  #main { min-height: 0; }   /* let the content area shrink so the nav stays on screen */
   .nav-btn { flex: 1; min-width: 58px; padding: 8px 2px; font-size: 11px; gap: 2px; }
   .nav-btn .nav-icon { font-size: 22px; }
   #fullscreen-btn { margin-top: 0 !important; margin-left: auto; }
