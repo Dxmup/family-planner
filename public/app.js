@@ -319,6 +319,7 @@ async function renderToday() {
     d.events = d.events.filter(e => e.member_id === focus.id || e.member_id === null);
     d.chores = d.chores.filter(c => c.member_id === focus.id);
     d.routines = (d.routines || []).filter(r => r.member_id === focus.id || r.member_id === null);
+    d.due_tasks = (d.due_tasks || []).filter(t => t.member_id === focus.id);
   }
 
   const eventsHtml = d.events.length ? d.events.map(e => {
@@ -383,6 +384,19 @@ async function renderToday() {
     ]),
     { key: 'chores', html: `<h3>⭐ ${focus ? esc(focus.name) + "'s Chores" : "Today's Chores"}${HANDLE}</h3>${choresHtml}` },
   ];
+  if ((d.due_tasks || []).length) {
+    const dueHtml = d.due_tasks.map(t => {
+      const m = t.member_id ? memberById(t.member_id) : null;
+      return `<div class="list-item">
+        <button class="chore-check" data-done-task="${t.id}"></button>
+        <span class="li-text">${esc(t.text)}</span>
+        ${dueBadge(t)}
+        ${m ? `<span class="assignee-chip" style="color:${m.color}" title="${esc(m.name)}">${esc(m.avatar)}</span>` : ''}
+        ${t.list_name ? `<span class="li-by">${esc(t.list_name)}</span>` : ''}
+      </div>`;
+    }).join('');
+    cards.push({ key: 'due', cls: 'due-card', html: `<h3>📌 Due${HANDLE}</h3>${dueHtml}` });
+  }
   for (const r of (d.routines || []).filter(r => r.items.length)) {
     const m = r.member_id ? memberById(r.member_id) : null;
     const doneCount = r.items.filter(i => i.done).length;
@@ -450,6 +464,12 @@ async function renderToday() {
   $$('[data-ritem]').forEach(btn => btn.addEventListener('click', async () => {
     await api.post(`/api/routine-items/${btn.dataset.ritem}/toggle`, { date: d.date });
     renderToday();
+  }));
+  $$('[data-done-task]').forEach(btn => btn.addEventListener('click', async () => {
+    try {
+      await api.put(`/api/list-items/${btn.dataset.doneTask}`, { done: true });
+      renderToday();
+    } catch (e) { alert(e.message); }
   }));
   $$('[data-del-ann]').forEach(b => b.addEventListener('click', async () => {
     if (!confirm('Remove this announcement?')) return;

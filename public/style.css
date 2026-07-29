@@ -457,3 +457,5 @@ textarea { resize: vertical; }
 }
 .due-badge.today { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .due-badge.overdue { color: #fff; background: #c85454; border-color: #c85454; }
+
+.due-card { border-left: 4px solid var(--accent); }

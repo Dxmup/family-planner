@@ -876,7 +876,7 @@ app.get('/api/dashboard', async (req, res) => {
   const date = DATE_RE.test(req.query.date || '') ? req.query.date : new Date().toISOString().slice(0, 10);
   try {
     const weekday = new Date(date + 'T00:00:00Z').getUTCDay();
-    const [membersR, events, google, meals, chores, compsR, lists, routines, cdR, annR] = await Promise.all([
+    const [membersR, events, google, meals, chores, compsR, lists, routines, cdR, annR, dueR] = await Promise.all([
       req.sb.from('members').select('*').order('id'),
       fetchExpandedEvents(req.sb, date, date),
       fetchGcalEvents(req.sb, date, date),
@@ -887,6 +887,9 @@ app.get('/api/dashboard', async (req, res) => {
       fetchRoutines(req.sb, date),
       req.sb.from('countdowns').select('*').gte('date', date).order('date').limit(5),
       req.sb.from('announcements').select('*').order('id', { ascending: false }).limit(3),
+      req.sb.from('list_items').select('*, lists(name)')
+        .eq('done', false).not('due_date', 'is', null).lte('due_date', date)
+        .order('due_date'),
     ]);
     if (membersR.error || meals.error || compsR.error || cdR.error || annR.error) {
       throw (membersR.error || meals.error || compsR.error || cdR.error || annR.error);
@@ -902,6 +905,7 @@ app.get('/api/dashboard', async (req, res) => {
       routines: routines.filter(r => r.days.includes(weekday)),
       countdowns: cdR.data,
       announcements: annR.data,
+      due_tasks: (dueR.data || []).map(t => ({ ...t, list_name: t.lists?.name, lists: undefined })),
     });
   } catch (e) { sendErr(res, e); }
 });
