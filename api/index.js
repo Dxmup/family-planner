@@ -816,7 +816,7 @@ app.delete('/api/lists/:id', async (req, res) => {
 app.post('/api/lists/:id/items', async (req, res) => {
   const { data: list } = await req.sb.from('lists').select('id').eq('id', req.params.id).maybeSingle();
   if (!list) return notFound(res);
-  const { text, added_by, member_id, due_date } = req.body;
+  const { text, added_by, member_id, due_date, notes } = req.body;
   if (!text || !text.trim()) return bad(res, 'text is required');
   if (due_date && !DATE_RE.test(due_date)) return bad(res, 'due_date must be YYYY-MM-DD');
   const { data: top } = await req.sb.from('list_items').select('position')
@@ -824,6 +824,7 @@ app.post('/api/lists/:id/items', async (req, res) => {
   const { data, error } = await req.sb.from('list_items')
     .insert({ list_id: list.id, text: text.trim(), added_by: added_by || null,
               member_id: member_id || null, due_date: due_date || null,
+              notes: (notes || '').trim() || null,
               position: (top?.position || 0) + 1 })
     .select().single();
   if (sendErr(res, error)) return;
@@ -847,6 +848,7 @@ app.put('/api/list-items/:id', async (req, res) => {
       done: b.done !== undefined ? !!b.done : item.done,
       member_id: b.member_id !== undefined ? b.member_id : item.member_id,
       due_date: b.due_date !== undefined ? (b.due_date || null) : item.due_date,
+      notes: b.notes !== undefined ? ((b.notes || '').trim() || null) : item.notes,
       list_id: b.list_id !== undefined ? b.list_id : item.list_id,
     })
     .eq('id', item.id).select().single();

@@ -459,3 +459,38 @@ textarea { resize: vertical; }
 .due-badge.overdue { color: #fff; background: #c85454; border-color: #c85454; }
 
 .due-card { border-left: 4px solid var(--accent); }
+
+/* ---------- To-do details ---------- */
+
+.li-notes { font-size: 13px; color: var(--muted); font-weight: 400; margin-top: 2px; white-space: pre-line; }
+
+/* ---------- Phone layout: bottom nav, scrollable wide grids ---------- */
+
+@media (max-width: 640px) {
+  #app { flex-direction: column; }
+  #sidebar {
+    order: 2;
+    flex-direction: row;
+    width: 100%;
+    padding: 4px 6px;
+    border-right: none;
+    border-top: 1px solid var(--line);
+    overflow-x: auto;
+    gap: 2px;
+  }
+  #clock { display: none; }
+  .nav-btn { flex: 1; min-width: 58px; padding: 8px 2px; font-size: 11px; gap: 2px; }
+  .nav-btn .nav-icon { font-size: 22px; }
+  #fullscreen-btn { margin-top: 0 !important; margin-left: auto; }
+  #main { padding: 14px 12px; }
+  .view-title { font-size: 24px; }
+  .view-header { margin-bottom: 12px; }
+  .weather { font-size: 16px; }
+  /* Wide grids scroll sideways instead of crushing */
+  .cal-grid, .week-grid { min-width: 640px; }
+  .cal-scroll, .week-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  #main { overflow-x: auto; }
+  .cal-cell { min-height: 84px; }
+  #modal { padding: 18px; max-height: 92vh; }
+  .form-cols { flex-direction: column; gap: 0; }
+}

@@ -131,6 +131,11 @@ tickClock();
 
 function openModal(html) {
   $('#modal').innerHTML = html;
+  // Generic fields (names, tasks, meals) trip mobile autofill heuristics and
+  // summon the password/payment bar; opt everything out unless a field
+  // explicitly declares autocomplete (the login form does).
+  $$('#modal input:not([autocomplete]), #modal textarea:not([autocomplete])')
+    .forEach(el => el.setAttribute('autocomplete', 'off'));
   $('#modal-backdrop').classList.remove('hidden');
 }
 function closeModal() {
@@ -241,7 +246,10 @@ async function render() {
 
 // Refresh periodically so edits from phones show up on the tablet.
 const safeRefresh = () => {
-  if (document.visibilityState === 'visible' &&
+  // Never re-render while someone is typing — it would wipe their input.
+  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+  if (!typing &&
+      document.visibilityState === 'visible' &&
       $('#modal-backdrop').classList.contains('hidden') &&
       $('#screensaver').classList.contains('hidden')) {
     render().catch(() => {});
@@ -389,7 +397,7 @@ async function renderToday() {
       const m = t.member_id ? memberById(t.member_id) : null;
       return `<div class="list-item">
         <button class="chore-check" data-done-task="${t.id}"></button>
-        <span class="li-text">${esc(t.text)}</span>
+        <span class="li-text">${esc(t.text)}${t.notes ? `<div class="li-notes">${esc(t.notes)}</div>` : ''}</span>
         ${dueBadge(t)}
         ${m ? `<span class="assignee-chip" style="color:${m.color}" title="${esc(m.name)}">${esc(m.avatar)}</span>` : ''}
         ${t.list_name ? `<span class="li-by">${esc(t.list_name)}</span>` : ''}
@@ -1270,7 +1278,7 @@ async function renderLists() {
         return `
         <div class="list-item ${i.done ? 'done' : ''}">
           <button class="chore-check ${i.done ? 'done' : ''}" data-toggle="${i.id}" data-done="${i.done ? 1 : 0}">${i.done ? '✓' : ''}</button>
-          <span class="li-text" data-edit-task="${i.id}">${esc(i.text)}</span>
+          <span class="li-text" data-edit-task="${i.id}">${esc(i.text)}${i.notes ? `<div class="li-notes">${esc(i.notes)}</div>` : ''}</span>
           ${dueBadge(i)}
           ${m ? `<span class="assignee-chip" style="color:${m.color}" title="${esc(m.name)}">${esc(m.avatar)}</span>`
               : (i.added_by ? `<span class="li-by">${esc(i.added_by)}</span>` : '')}
@@ -1278,7 +1286,7 @@ async function renderLists() {
         </div>`;
       }).join('') || `<div class="empty">${filter !== null ? 'Nothing assigned here' : 'Empty — add something below'}</div>`}
       <div class="add-item-row">
-        <input placeholder="${filter !== null ? `Add task for ${esc(memberById(filter)?.name || '')}…` : 'Add item…'}" data-input="${l.id}">
+        <input placeholder="${filter !== null ? `Add task for ${esc(memberById(filter)?.name || '')}…` : 'Add item…'}" data-input="${l.id}" autocomplete="off" autocorrect="off" name="new-item-${l.id}">
         <button class="btn small" data-add="${l.id}">Add</button>
       </div>
     </div>`;
@@ -1375,7 +1383,9 @@ function taskForm(item, lists) {
   if (currentList === undefined) { alert('Create a list first'); return; }
   openModal(`
     <h2>${isEdit ? 'Edit' : 'New'} Task</h2>
-    <div class="form-row"><label>Task</label><input id="f-text" value="${esc(item?.text || '')}" placeholder="Paint the deck"></div>
+    <div class="form-row"><label>Task</label><input id="f-text" value="${esc(item?.text || '')}" placeholder="Paint the deck" autocomplete="off"></div>
+    <div class="form-row"><label>Details (optional)</label>
+      <textarea id="f-notes" rows="3" placeholder="Sand first, use the leftover stain from the shed" autocomplete="off">${esc(item?.notes || '')}</textarea></div>
     <div class="form-row"><label>List</label>
       <select id="f-list">${options.map(l =>
         `<option value="${l.id}" ${l.id === currentList ? 'selected' : ''}>${l.type === 'grocery' ? '🛒' : '✅'} ${esc(l.name)}</option>`).join('')}</select></div>
@@ -1400,6 +1410,7 @@ function taskForm(item, lists) {
   $('#f-save').addEventListener('click', async () => {
     const body = {
       text: $('#f-text').value,
+      notes: $('#f-notes').value,
       member_id: $('#f-member').value ? Number($('#f-member').value) : null,
       due_date: $('#f-due').value || null,
       list_id: Number($('#f-list').value),
