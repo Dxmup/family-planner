@@ -1053,13 +1053,21 @@ const FREQ_LABEL = { weekly: '', biweekly: 'every other week', monthly: 'monthly
 async function renderChores() {
   const start = state.choresWeekStart;
   const end = addDays(start, 6);
-  const [chores, comp, rewardData] = await Promise.all([
+  const [chores, comp, rewardData, bonusPoints] = await Promise.all([
     api.get('/api/chores'),
     api.get(`/api/chores/completions?start=${ymd(start)}&end=${ymd(end)}`),
     api.get('/api/rewards'),
+    api.get(`/api/bonus-points?start=${ymd(start)}&end=${ymd(end)}`),
   ]);
   const doneSet = new Set(comp.completions.map(c => `${c.chore_id}|${c.date}`));
   const starsByMember = Object.fromEntries(comp.stars.map(s => [s.member_id, s.points]));
+  const bonusByKey = {};
+  for (const b of bonusPoints) {
+    const key = b.member_id ?? 'family';
+    bonusByKey[key] = (bonusByKey[key] || 0) + b.points;
+  }
+  const weeklyFor = (memberId) => (starsByMember[memberId] || 0) + (bonusByKey[memberId] || 0);
+  const weeklyFamily = (comp.family_chore_points || 0) + (bonusByKey.family || 0);
 
   const groups = [];
   for (const m of state.members) {
@@ -1095,10 +1103,21 @@ async function renderChores() {
     const head = g.member
       ? `<div class="chore-member-head"><span class="avatar">${esc(g.member.avatar)}</span>
            <span class="name" style="color:${g.member.color}">${esc(g.member.name)}</span>
-           <span class="star-count">⭐ ${starsByMember[g.member.id] || 0} this week</span></div>`
-      : `<div class="chore-member-head"><span class="avatar">👪</span><span class="name">Anyone</span></div>`;
+           <span class="star-count">⭐ ${weeklyFor(g.member.id)} this week</span></div>`
+      : `<div class="chore-member-head"><span class="avatar">🎉</span><span class="name">Family Bucket</span>
+           <span class="star-count">⭐ ${weeklyFamily} this week</span></div>`;
     return `<div class="chore-member-block">${head}<div class="week-grid">${headRow.join('')}${rows}</div></div>`;
   }).join('');
+
+  const bonusListHtml = bonusPoints.length ? `
+    <div class="view-sub" style="margin:14px 0 6px">🎉 Bonus points this week</div>
+    <div class="card">${bonusPoints.map(b => `
+      <div class="list-item">
+        <span class="li-text">${b.member_id ? `${esc(memberById(b.member_id)?.avatar || '')} ${esc(memberById(b.member_id)?.name || 'Member')}` : '🎉 Family Bucket'}
+          <strong>+${b.points}⭐</strong>${b.reason ? ` — ${esc(b.reason)}` : ''}</span>
+        ${b.awarded_by ? `<span class="li-by">${esc(b.awarded_by)}</span>` : ''}
+        <button class="li-del" data-del-bonus="${b.id}">✕</button>
+      </div>`).join('')}</div>` : '';
 
   $('#main').innerHTML = `
     <div class="view-header">
@@ -1108,15 +1127,20 @@ async function renderChores() {
         <button class="btn ghost small" id="wk-next">›</button>
         <button class="btn ghost small" id="wk-today">This Week</button>
       </div>
-      <button class="btn" id="add-chore">+ Add Chore</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn ghost" id="add-bonus">+ Award Points</button>
+        <button class="btn" id="add-chore">+ Add Chore</button>
+      </div>
     </div>
     ${blocks || '<div class="empty" style="font-size:18px">No chores yet — tap "+ Add Chore" to set up your chart.</div>'}
+    ${bonusListHtml}
     ${renderRewardsSection(rewardData)}`;
 
   $('#wk-prev').addEventListener('click', () => { state.choresWeekStart = addDays(start, -7); renderChores(); });
   $('#wk-next').addEventListener('click', () => { state.choresWeekStart = addDays(start, 7); renderChores(); });
   $('#wk-today').addEventListener('click', () => { state.choresWeekStart = startOfWeek(new Date()); renderChores(); });
   $('#add-chore').addEventListener('click', () => choreForm());
+  $('#add-bonus').addEventListener('click', () => bonusForm());
   $$('[data-edit-chore]').forEach(b => b.addEventListener('click', () => {
     choreForm(chores.find(c => c.id === Number(b.dataset.editChore)));
   }));
@@ -1124,17 +1148,52 @@ async function renderChores() {
     await api.post(`/api/chores/${cell.dataset.chore}/toggle`, { date: cell.dataset.date });
     renderChores();
   }));
+  $$('[data-del-bonus]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Remove this bonus award?')) return;
+    try {
+      await api.del(`/api/bonus-points/${b.dataset.delBonus}`);
+      renderChores();
+    } catch (e) { alert(e.message); }
+  }));
   wireRewardsSection(rewardData);
+}
+
+function bonusForm() {
+  openModal(`
+    <h2>Award Bonus Points</h2>
+    <div class="form-row"><label>Who</label><select id="f-member">${memberSelectOptions(null, '🎉 Family Bucket')}</select></div>
+    <div class="form-row"><label>Points</label><input id="f-points" type="number" min="1" max="50" value="5"></div>
+    <div class="form-row"><label>Reason (optional)</label><input id="f-reason" placeholder="Great sharing today!"></div>
+    <div class="form-row"><label>Awarded by (optional)</label><input id="f-by" placeholder="Mom, Dad, etc."></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="f-cancel">Cancel</button>
+      <button class="btn" id="f-save">Award</button>
+    </div>`);
+  $('#f-cancel').addEventListener('click', closeModal);
+  $('#f-save').addEventListener('click', async () => {
+    const pts = Number($('#f-points').value);
+    if (!Number.isInteger(pts) || pts <= 0) { alert('Enter a positive number of points'); return; }
+    try {
+      await api.post('/api/bonus-points', {
+        member_id: $('#f-member').value ? Number($('#f-member').value) : null,
+        points: pts,
+        reason: $('#f-reason').value || null,
+        awarded_by: $('#f-by').value || null,
+      });
+      closeModal(); renderChores();
+    } catch (e) { alert(e.message); }
+  });
 }
 
 // ---------- Rewards (star store) ----------
 
 function renderRewardsSection(rd) {
+  const familyBal = rd.balances.find(x => x.member_id === null);
   const balanceChips = state.members.map(m => {
     const b = rd.balances.find(x => x.member_id === m.id);
     return `<span class="member-chip" style="color:${m.color}">${esc(m.avatar)} ${esc(m.name)}
       <b>⭐ ${b ? b.available : 0}</b></span>`;
-  }).join('');
+  }).join('') + `<span class="member-chip">🎉 Family Bucket <b>⭐ ${familyBal ? familyBal.available : 0}</b></span>`;
 
   const cards = rd.rewards.length ? rd.rewards.map(r => `
     <div class="card reward-card">
@@ -1172,6 +1231,8 @@ function wireRewardsSection(rd) {
     rewardForm(rd.rewards.find(r => r.id === Number(b.dataset.editReward)))));
   $$('[data-redeem]').forEach(b => b.addEventListener('click', () => {
     const reward = rd.rewards.find(r => r.id === Number(b.dataset.redeem));
+    const familyBal = rd.balances.find(x => x.member_id === null);
+    const familyAvail = familyBal ? familyBal.available : 0;
     openModal(`
       <h2>${esc(reward.icon)} Redeem: ${esc(reward.title)}</h2>
       <div class="form-row"><label>Who's spending ⭐ ${reward.cost}?</label>
@@ -1180,12 +1241,15 @@ function wireRewardsSection(rd) {
           const avail = bal ? bal.available : 0;
           return `<button class="member-chip" data-who="${m.id}" ${avail < reward.cost ? 'disabled style="opacity:.45"' : `style="color:${m.color}"`}>
             ${esc(m.avatar)} ${esc(m.name)} (⭐ ${avail})</button>`;
-        }).join('')}</div></div>
+        }).join('')}
+        <button class="member-chip" data-who="family" ${familyAvail < reward.cost ? 'disabled style="opacity:.45"' : ''}>
+          🎉 Family Bucket (⭐ ${familyAvail})</button></div></div>
       <div class="modal-actions"><button class="btn ghost" id="f-cancel">Cancel</button></div>`);
     $('#f-cancel').addEventListener('click', closeModal);
     $$('#modal [data-who]:not([disabled])').forEach(chip => chip.addEventListener('click', async () => {
       try {
-        await api.post(`/api/rewards/${reward.id}/redeem`, { member_id: Number(chip.dataset.who) });
+        const who = chip.dataset.who;
+        await api.post(`/api/rewards/${reward.id}/redeem`, { member_id: who === 'family' ? null : Number(who) });
         closeModal(); renderChores();
       } catch (e) { alert(e.message); }
     }));

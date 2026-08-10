@@ -509,26 +509,32 @@ app.post('/api/meal-plans/:id/apply', async (req, res) => {
 });
 
 // ---------- Rewards ----------
-// Star balance = lifetime chore points earned minus stars spent on rewards.
+// Star balance = lifetime chore points + bonus points earned minus stars
+// spent on rewards. Unassigned/family chores and bonus points awarded with
+// no member_id all land in a shared family bucket, keyed here as 'family'
+// and returned to callers as member_id: null.
 
 async function fetchBalances(sb) {
-  const [{ data: comps, error: e1 }, { data: chores, error: e2 }, { data: reds, error: e3 }] =
+  const [{ data: comps, error: e1 }, { data: chores, error: e2 }, { data: reds, error: e3 }, { data: bonuses, error: e4 }] =
     await Promise.all([
       sb.from('chore_completions').select('chore_id'),
       sb.from('chores').select('id,member_id,points'),
       sb.from('redemptions').select('member_id,cost'),
+      sb.from('bonus_points').select('member_id,points'),
     ]);
-  if (e1 || e2 || e3) throw (e1 || e2 || e3);
+  if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
   const byId = Object.fromEntries((chores || []).map(c => [c.id, c]));
+  const key = (id) => id == null ? 'family' : id;
   const earned = {}, spent = {};
   for (const cc of comps || []) {
     const c = byId[cc.chore_id];
-    if (c && c.member_id != null) earned[c.member_id] = (earned[c.member_id] || 0) + c.points;
+    if (c) earned[key(c.member_id)] = (earned[key(c.member_id)] || 0) + c.points;
   }
-  for (const r of reds || []) spent[r.member_id] = (spent[r.member_id] || 0) + r.cost;
+  for (const b of bonuses || []) earned[key(b.member_id)] = (earned[key(b.member_id)] || 0) + b.points;
+  for (const r of reds || []) spent[key(r.member_id)] = (spent[key(r.member_id)] || 0) + r.cost;
   const ids = new Set([...Object.keys(earned), ...Object.keys(spent)]);
   return [...ids].map(id => ({
-    member_id: Number(id),
+    member_id: id === 'family' ? null : Number(id),
     earned: earned[id] || 0,
     spent: spent[id] || 0,
     available: (earned[id] || 0) - (spent[id] || 0),
@@ -578,24 +584,59 @@ app.delete('/api/rewards/:id', async (req, res) => {
 });
 
 // Redeeming requires the parent login — that's the built-in approval step.
+// member_id may be an id (a specific member) or explicit null (family bucket).
 app.post('/api/rewards/:id/redeem', async (req, res) => {
-  const { member_id } = req.body;
-  if (!member_id) return bad(res, 'member_id is required');
+  if (!('member_id' in req.body)) return bad(res, 'member_id is required (null for the family bucket)');
+  const memberId = req.body.member_id === null ? null : Number(req.body.member_id);
   const { data: reward } = await req.sb.from('rewards').select('*').eq('id', req.params.id).maybeSingle();
   if (!reward) return notFound(res);
   try {
     const balances = await fetchBalances(req.sb);
-    const bal = balances.find(b => b.member_id === Number(member_id));
+    const bal = balances.find(b => b.member_id === memberId);
     if (!bal || bal.available < reward.cost) {
       return bad(res, `Not enough stars (need ${reward.cost}, has ${bal ? bal.available : 0})`);
     }
   } catch (e) { return sendErr(res, e); }
   const { data, error } = await req.sb.from('redemptions').insert({
-    reward_id: reward.id, member_id, title: reward.title, cost: reward.cost,
+    reward_id: reward.id, member_id: memberId, title: reward.title, cost: reward.cost,
     date: new Date().toISOString().slice(0, 10),
   }).select().single();
   if (sendErr(res, error)) return;
   ok(res, data);
+});
+
+// ---------- Bonus points ----------
+// Parents award these ad hoc, for good behavior rather than a scheduled
+// chore. A null member_id sends the points to the shared family bucket.
+
+app.get('/api/bonus-points', async (req, res) => {
+  const { start, end } = req.query;
+  if (!DATE_RE.test(start || '') || !DATE_RE.test(end || '')) {
+    return bad(res, 'start and end (YYYY-MM-DD) are required');
+  }
+  const { data, error } = await req.sb.from('bonus_points').select('*')
+    .gte('date', start).lte('date', end).order('date', { ascending: false }).order('id', { ascending: false });
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.post('/api/bonus-points', async (req, res) => {
+  const { member_id, points, reason, awarded_by, date } = req.body;
+  const pts = Number(points);
+  if (!Number.isInteger(pts) || pts <= 0) return bad(res, 'points must be a positive integer');
+  const awardDate = date || new Date().toISOString().slice(0, 10);
+  if (!DATE_RE.test(awardDate)) return bad(res, 'date must be YYYY-MM-DD');
+  const { data, error } = await req.sb.from('bonus_points')
+    .insert({ member_id: member_id || null, points: pts, reason: reason || null, awarded_by: awarded_by || null, date: awardDate })
+    .select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.delete('/api/bonus-points/:id', async (req, res) => {
+  const { data, error } = await req.sb.from('bonus_points').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
 });
 
 // ---------- Routines ----------
@@ -889,12 +930,15 @@ app.get('/api/chores/completions', async (req, res) => {
   if (sendErr(res, e1 || e2)) return;
   const byId = Object.fromEntries((chores || []).map(c => [c.id, c]));
   const starMap = {};
+  let familyChorePoints = 0;
   for (const cc of completions || []) {
     const c = byId[cc.chore_id];
-    if (c && c.member_id != null) starMap[c.member_id] = (starMap[c.member_id] || 0) + c.points;
+    if (!c) continue;
+    if (c.member_id != null) starMap[c.member_id] = (starMap[c.member_id] || 0) + c.points;
+    else familyChorePoints += c.points;
   }
   const stars = Object.entries(starMap).map(([member_id, points]) => ({ member_id: Number(member_id), points }));
-  ok(res, { completions, stars });
+  ok(res, { completions, stars, family_chore_points: familyChorePoints });
 });
 
 app.post('/api/chores/:id/toggle', async (req, res) => {
