@@ -3,16 +3,26 @@
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
-// ---------- parent auth ----------
-// Reading is open to everyone (the wall tablet never logs in); any change
-// requires a parent session. Tokens live in localStorage and refresh silently.
+// ---------- family auth ----------
+// Everything requires a login. Parents sign in with their own account and can
+// change anything; the wall tablet signs in once as a read-only "display"
+// account (not in public.parents) and can only tap chores done.
+// Tokens live in localStorage and refresh silently.
 
 const auth = {
   load() { try { return JSON.parse(localStorage.getItem('fp_auth')) || null; } catch { return null; } },
   save(s) { localStorage.setItem('fp_auth', JSON.stringify(s)); },
   clear() { localStorage.removeItem('fp_auth'); },
   get session() { return this.load(); },
-  async refresh() {
+  // Refresh tokens are single-use, so concurrent callers must share one request.
+  refreshing: null,
+  refresh() {
+    if (!this.refreshing) {
+      this.refreshing = this.doRefresh().finally(() => { this.refreshing = null; });
+    }
+    return this.refreshing;
+  },
+  async doRefresh() {
     const s = this.load();
     if (!s?.refresh_token) return false;
     try {
@@ -21,7 +31,10 @@ const auth = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh_token: s.refresh_token }),
       });
-      if (!res.ok) { this.clear(); return false; }
+      // Only an explicit rejection ends the session; a network blip (tablet
+      // waking up before wifi is back) must not log the display out.
+      if (res.status === 400 || res.status === 401) { this.clear(); return false; }
+      if (!res.ok) return false;
       this.save(await res.json());
       return true;
     } catch { return false; }
@@ -50,9 +63,12 @@ const api = {
       if (loggedIn) return api.req(method, url, body, true);
       throw new Error('Parent login required');
     }
-    if (res.status === 401 && method === 'GET' && s && !retried) {
-      // Stale session on a read: refresh once, else fall back to anonymous.
-      if (!await auth.refresh()) { auth.clear(); updateParentBtn(); }
+    if (res.status === 401 && method === 'GET') {
+      // Stale or missing session on a read: refresh once, else ask for a login.
+      if (!retried && s && await auth.refresh()) return api.req(method, url, body, true);
+      if (retried && auth.session) throw new Error('Login required');
+      auth.clear(); updateParentBtn();
+      await promptLogin({ required: true });
       return api.req(method, url, body, true);
     }
     if (!res.ok) {
@@ -152,29 +168,41 @@ function closeModal() {
   $('#modal').innerHTML = '';
 }
 $('#modal-backdrop').addEventListener('click', (e) => {
-  if (e.target.id === 'modal-backdrop') closeModal();
+  if (e.target.id === 'modal-backdrop' && !loginRequired) closeModal();
 });
 
 // ---------- login modal ----------
 
 let loginResolve = null;
+let loginPromise = null;
+let loginRequired = false;
 
-function promptLogin() {
-  return new Promise(resolve => {
+// One login dialog at a time; concurrent callers share the same promise.
+// required: true = the app is unusable without a session, so no Cancel button
+// and tapping outside the dialog does nothing.
+function promptLogin({ required = false } = {}) {
+  if (loginPromise) return loginPromise;
+  loginRequired = required;
+  loginPromise = new Promise(resolve => {
     loginResolve = resolve;
     openModal(`
-      <h2>🔒 Parent Login</h2>
-      <p class="view-sub" style="margin-bottom:12px">Log in to add or change things. Viewing never needs a login.</p>
+      <h2>🔒 ${required ? 'Family Login' : 'Parent Login'}</h2>
+      <p class="view-sub" style="margin-bottom:12px">${required
+        ? 'Log in to open the family planner.'
+        : 'Log in as a parent to add or change things.'}</p>
       <div class="form-row"><label>Email</label><input id="f-email" type="email" autocomplete="username"></div>
       <div class="form-row"><label>Password</label><input id="f-password" type="password" autocomplete="current-password"></div>
       <div id="login-error" class="empty" style="display:none;color:#c85454"></div>
       <div class="modal-actions">
-        <button class="btn ghost" id="f-cancel">Cancel</button>
+        ${required ? '' : '<button class="btn ghost" id="f-cancel">Cancel</button>'}
         <button class="btn" id="f-login">Log in</button>
       </div>`);
     $('#f-email').focus();
-    const finish = (val) => { const r = loginResolve; loginResolve = null; closeModal(); r?.(val); };
-    $('#f-cancel').addEventListener('click', () => finish(false));
+    const finish = (val) => {
+      const r = loginResolve; loginResolve = null; loginPromise = null; loginRequired = false;
+      closeModal(); r?.(val);
+    };
+    $('#f-cancel')?.addEventListener('click', () => finish(false));
     const submit = async () => {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -195,16 +223,19 @@ function promptLogin() {
     $('#f-login').addEventListener('click', submit);
     $('#f-password').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
   });
+  return loginPromise;
 }
 
 function updateParentBtn() {
   const s = auth.session;
   const btn = $('#parent-btn');
   if (!btn) return;
-  btn.innerHTML = s
+  btn.innerHTML = s?.parent
     ? `<span class="nav-icon">🔓</span><span>Parent</span>`
-    : `<span class="nav-icon">🔒</span><span>Parent</span>`;
-  btn.title = s ? `Logged in as ${s.email} — tap to log out` : 'Parent login';
+    : `<span class="nav-icon">🔒</span><span>${s ? 'Display' : 'Log in'}</span>`;
+  btn.title = s
+    ? `Logged in as ${s.email}${s.parent ? '' : ' (view only)'} — tap to switch or log out`
+    : 'Log in';
 }
 
 // ---------- fullscreen (Fire tablet / Silk has no kiosk mode) ----------
@@ -224,9 +255,14 @@ if (document.documentElement.requestFullscreen) {
 
 $('#parent-btn')?.addEventListener('click', async () => {
   if (auth.session) {
-    if (confirm(`Log out ${auth.session.email}?`)) { auth.clear(); updateParentBtn(); }
+    if (confirm(`Log out ${auth.session.email}?`)) {
+      auth.clear(); updateParentBtn();
+      await promptLogin({ required: true });
+      render().catch(() => {});
+    }
   } else {
-    await promptLogin();
+    await promptLogin({ required: true });
+    render().catch(() => {});
   }
 });
 updateParentBtn();
@@ -1957,6 +1993,9 @@ keepAwake();
 
 // ---------- boot ----------
 
-render().catch(err => {
+(async () => {
+  if (!auth.session) await promptLogin({ required: true });
+  await render();
+})().catch(err => {
   $('#main').innerHTML = `<div class="empty">Could not reach the server: ${esc(err.message)}</div>`;
 });
