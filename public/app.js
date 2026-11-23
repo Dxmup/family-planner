@@ -285,6 +285,7 @@ async function render() {
     routines: renderRoutines,
     lists: renderLists,
     family: renderFamily,
+    apps: renderApps,
   };
   await views[state.view]();
 }
@@ -1713,6 +1714,41 @@ function imageView(url) {
 }
 
 // ---------- Family ----------
+
+// ---------- Apps (launcher) ----------
+// Family-only links to the rest of the home server. The sites behind these
+// links sit behind Cloudflare Access, so the first visit on a device asks for
+// an emailed code. Add an entry here to add a tile.
+
+const APPS = [
+  { icon: '📚', name: 'Books', desc: 'Ebook library', url: 'https://books.hensels.app' },
+  { icon: '🎧', name: 'Audiobooks', desc: 'Audiobooks and podcasts', url: 'https://audio.hensels.app' },
+  { icon: '🔧', name: 'Home inventory', desc: 'Appliances, serial numbers, manuals', url: null },
+];
+
+async function renderApps() {
+  const tiles = APPS.map(a => a.url
+    ? `<a class="card app-tile" href="${esc(a.url)}" target="_blank" rel="noopener">
+         <div class="app-icon">${a.icon}</div>
+         <div class="app-name">${esc(a.name)}</div>
+         <div class="li-by">${esc(a.desc)}</div>
+       </a>`
+    : `<div class="card app-tile soon">
+         <div class="app-icon">${a.icon}</div>
+         <div class="app-name">${esc(a.name)}</div>
+         <div class="li-by">${esc(a.desc)}</div>
+         <div class="app-soon">Coming soon</div>
+       </div>`).join('');
+
+  $('#main').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Apps</div>
+        <div class="view-sub">Everything else the family uses</div>
+      </div>
+    </div>
+    <div class="apps-grid">${tiles}</div>`;
+}
 
 async function renderFamily() {
   let calendars = [];
