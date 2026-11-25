@@ -92,6 +92,41 @@ app.post('/api/auth/refresh', async (req, res) => {
   });
 });
 
+// Password reset email. Always answers 200 so it can't be used to discover
+// which emails have accounts. The link in the email goes to the Supabase
+// project's Site URL (https://hensels.app) with the reset token in the hash.
+app.post('/api/auth/recover', async (req, res) => {
+  const email = String((req.body || {}).email || '').trim();
+  if (!email) return bad(res, 'email is required');
+  await gotrue('/recover', { email }).catch(() => {});
+  ok(res, { ok: true });
+});
+
+// Set a new password for whoever owns the bearer token: a normal session
+// (Change password tile) or the short-lived token from a reset email.
+app.post('/api/auth/password', async (req, res) => {
+  const bearer = req.headers.authorization || '';
+  if (!/^Bearer\s+\S+/.test(bearer)) return res.status(401).json({ error: 'Login required' });
+  const { password } = req.body || {};
+  if (typeof password !== 'string' || password.length < 8) {
+    return bad(res, 'Password must be at least 8 characters');
+  }
+  const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: bearer },
+    body: JSON.stringify({ password }),
+  });
+  const json = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = String(json.msg || json.error_description || '');
+    if (/jwt|token|expired/i.test(msg)) {
+      return res.status(401).json({ error: 'This link has expired or is not valid. Ask for a new reset link.' });
+    }
+    return res.status(400).json({ error: msg || 'Could not update password' });
+  }
+  ok(res, { ok: true });
+});
+
 // ---------- Members ----------
 
 app.get('/api/members', async (req, res) => {

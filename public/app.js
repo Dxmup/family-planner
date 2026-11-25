@@ -180,7 +180,7 @@ let loginRequired = false;
 // One login dialog at a time; concurrent callers share the same promise.
 // required: true = the app is unusable without a session, so no Cancel button
 // and tapping outside the dialog does nothing.
-function promptLogin({ required = false } = {}) {
+function promptLogin({ required = false, notice = '' } = {}) {
   if (loginPromise) return loginPromise;
   loginRequired = required;
   loginPromise = new Promise(resolve => {
@@ -190,11 +190,13 @@ function promptLogin({ required = false } = {}) {
       <p class="view-sub" style="margin-bottom:12px">${required
         ? 'Log in to open the family planner.'
         : 'Log in as a parent to add or change things.'}</p>
+      ${notice ? `<p class="view-sub" style="margin-bottom:12px;color:#3a8a5a">${esc(notice)}</p>` : ''}
       <div class="form-row"><label>Email</label><input id="f-email" type="email" autocomplete="username"></div>
       <div class="form-row"><label>Password</label><input id="f-password" type="password" autocomplete="current-password"></div>
       <div id="login-error" class="empty" style="display:none;color:#c85454"></div>
       <div class="modal-actions">
         ${required ? '' : '<button class="btn ghost" id="f-cancel">Cancel</button>'}
+        <button class="btn ghost" id="f-forgot" type="button">Forgot password?</button>
         <button class="btn" id="f-login">Log in</button>
       </div>`);
     $('#f-email').focus();
@@ -220,10 +222,91 @@ function promptLogin({ required = false } = {}) {
       updateParentBtn();
       finish(true);
     };
+    $('#f-forgot').addEventListener('click', async () => {
+      const el = $('#login-error');
+      const email = $('#f-email').value.trim();
+      el.style.display = 'block';
+      if (!email) { el.style.color = '#c85454'; el.textContent = 'Type your email above first.'; return; }
+      try {
+        await fetch('/api/auth/recover', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+      } catch { /* same message either way */ }
+      el.style.color = '#3a8a5a';
+      el.textContent = 'If that email has an account, a reset link is on its way. It can take a minute, and you can only ask once a minute.';
+    });
     $('#f-login').addEventListener('click', submit);
     $('#f-password').addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
   });
   return loginPromise;
+}
+
+// ---------- set a new password ----------
+
+// Reset links land on the site with the token in the URL hash.
+function recoveryTokenFromUrl() {
+  const p = new URLSearchParams(location.hash.replace(/^#/, ''));
+  if (p.get('type') !== 'recovery' || !p.get('access_token')) return null;
+  history.replaceState(null, '', location.pathname + location.search);
+  return p.get('access_token');
+}
+
+async function postPassword(token, password) {
+  const send = (t) => fetch('/api/auth/password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + t },
+    body: JSON.stringify({ password }),
+  });
+  let res = await send(token);
+  // A normal session token may have expired; the reset-link token can't be refreshed.
+  if (res.status === 401 && auth.session && token === auth.session.access_token) {
+    if (await auth.refresh()) res = await send(auth.session.access_token);
+  }
+  if (res.ok) return { ok: true };
+  const err = await res.json().catch(() => ({}));
+  return { ok: false, error: err.error || 'Could not update password' };
+}
+
+// token = the reset-link token, or null to use the current login.
+// Resolves true once the password has been changed, false if cancelled.
+function promptNewPassword(token = null) {
+  const wasRequired = loginRequired;
+  loginRequired = true;   // tapping outside must not dismiss it
+  return new Promise(resolve => {
+    openModal(`
+      <h2>🔑 Set a new password</h2>
+      <div class="form-row"><label>New password (8+ characters)</label><input id="f-newpw" type="password" autocomplete="new-password"></div>
+      <div class="form-row"><label>Type it again</label><input id="f-newpw2" type="password" autocomplete="new-password"></div>
+      <div id="pw-error" class="empty" style="display:none;color:#c85454"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="f-pw-cancel">Cancel</button>
+        <button class="btn" id="f-pw-save">Save password</button>
+      </div>`);
+    $('#f-newpw').focus();
+    const finish = (val) => { loginRequired = wasRequired; closeModal(); resolve(val); };
+    const fail = (msg) => { const el = $('#pw-error'); el.textContent = msg; el.style.display = 'block'; };
+    $('#f-pw-cancel').addEventListener('click', () => finish(false));
+    const save = async () => {
+      const a = $('#f-newpw').value, b = $('#f-newpw2').value;
+      if (a.length < 8) return fail('Use at least 8 characters.');
+      if (a !== b) return fail('The two passwords do not match.');
+      const t = token || auth.session?.access_token;
+      if (!t) return fail('You are not logged in. Log in and try again.');
+      $('#f-pw-save').disabled = true;
+      const r = await postPassword(t, a);
+      $('#f-pw-save').disabled = false;
+      if (!r.ok) return fail(r.error);
+      $('#modal').innerHTML = `
+        <h2>✅ Password updated</h2>
+        <p class="view-sub" style="margin-bottom:12px">Use the new password the next time you log in.</p>
+        <div class="modal-actions"><button class="btn" id="f-pw-ok">OK</button></div>`;
+      $('#f-pw-ok').addEventListener('click', () => finish(true));
+    };
+    $('#f-pw-save').addEventListener('click', save);
+    $('#f-newpw2').addEventListener('keydown', e => { if (e.key === 'Enter') save(); });
+  });
 }
 
 function updateParentBtn() {
@@ -1812,7 +1895,13 @@ async function renderApps() {
         <div class="view-sub">Everything else the family uses</div>
       </div>
     </div>
-    <div class="apps-grid">${tiles}</div>`;
+    <div class="apps-grid">${tiles}${auth.session?.parent ? `
+      <div class="card app-tile" id="change-pw" role="button" tabindex="0" style="cursor:pointer">
+        <div class="app-icon">🔑</div>
+        <div class="app-name">Change password</div>
+        <div class="li-by">For your planner login</div>
+      </div>` : ''}</div>`;
+  $('#change-pw')?.addEventListener('click', () => promptNewPassword());
 }
 
 async function renderFamily() {
@@ -2095,6 +2184,15 @@ keepAwake();
 // ---------- boot ----------
 
 (async () => {
+  const resetToken = recoveryTokenFromUrl();
+  if (resetToken) {
+    // Opened from a password-reset email: set the new password first, then log in with it.
+    const changed = await promptNewPassword(resetToken);
+    if (changed) {
+      auth.clear();
+      await promptLogin({ required: true, notice: 'Password updated. Log in with your new password.' });
+    }
+  }
   if (!auth.session) await promptLogin({ required: true });
   await render();
 })().catch(err => {
