@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -51,6 +52,45 @@ function sendErr(res, error) {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}$/;
 
+// ---------- Single sign-on cookie for the family library ----------
+// Logging in to the planner also sets a signed cookie on .hensels.app. A
+// Cloudflare Worker in front of books. and audio. checks that cookie with the
+// PUBLIC half of an ES256 key, so the planner login is the only front door.
+// The private key (SSO_PRIVATE_KEY, base64 PKCS8) lives only in Vercel's env.
+const SSO_COOKIE = 'hensels_sso';
+const SSO_DAYS = 30;
+const b64u = (buf) => Buffer.from(buf).toString('base64url');
+
+function ssoCookieAttrs(req, maxAge) {
+  const onSite = /(^|\.)hensels\.app$/.test(String(req.hostname || ''));
+  return `Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${onSite ? '; Domain=.hensels.app; Secure' : ''}`;
+}
+
+// Returns true if the cookie was issued (false when no key is configured,
+// e.g. local dev or a preview deploy: the planner itself still works).
+function setSsoCookie(req, res, email, parent) {
+  const key = process.env.SSO_PRIVATE_KEY;
+  if (!key) return false;
+  try {
+    const payload = b64u(JSON.stringify({
+      e: email, p: !!parent, exp: Math.floor(Date.now() / 1000) + SSO_DAYS * 86400,
+    }));
+    const sig = crypto.sign('sha256', Buffer.from(payload), {
+      key: crypto.createPrivateKey({ key: Buffer.from(key, 'base64'), format: 'der', type: 'pkcs8' }),
+      dsaEncoding: 'ieee-p1363',
+    });
+    res.append('Set-Cookie', `${SSO_COOKIE}=${payload}.${b64u(sig)}; ${ssoCookieAttrs(req, SSO_DAYS * 86400)}`);
+    return true;
+  } catch (e) {
+    console.error('sso cookie failed:', e.message);
+    return false;
+  }
+}
+
+function clearSsoCookie(req, res) {
+  res.append('Set-Cookie', `${SSO_COOKIE}=; ${ssoCookieAttrs(req, 0)}`);
+}
+
 // ---------- Auth ----------
 
 async function gotrue(path, body) {
@@ -69,12 +109,14 @@ app.post('/api/auth/login', async (req, res) => {
   if (status !== 200) {
     return res.status(401).json({ error: json.error_description || json.msg || 'Login failed' });
   }
+  const parent = await isParent(json.access_token);
+  setSsoCookie(req, res, json.user?.email, parent);
   ok(res, {
     access_token: json.access_token,
     refresh_token: json.refresh_token,
     expires_at: json.expires_at,
     email: json.user?.email,
-    parent: await isParent(json.access_token),
+    parent,
   });
 });
 
@@ -83,13 +125,34 @@ app.post('/api/auth/refresh', async (req, res) => {
   if (!refresh_token) return bad(res, 'refresh_token is required');
   const { status, json } = await gotrue('/token?grant_type=refresh_token', { refresh_token });
   if (status !== 200) return res.status(401).json({ error: 'Session expired — please log in again' });
+  const parent = await isParent(json.access_token);
+  setSsoCookie(req, res, json.user?.email, parent);
   ok(res, {
     access_token: json.access_token,
     refresh_token: json.refresh_token,
     expires_at: json.expires_at,
     email: json.user?.email,
-    parent: await isParent(json.access_token),
+    parent,
   });
+});
+
+// For someone who is already logged in (token in localStorage) but has no
+// library cookie yet, e.g. after this feature shipped. Needs a valid session.
+app.post('/api/auth/sso', async (req, res) => {
+  const bearer = req.headers.authorization || '';
+  if (!/^Bearer\s+\S+/.test(bearer)) return res.status(401).json({ error: 'Login required' });
+  const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: bearer },
+  });
+  const user = await r.json().catch(() => ({}));
+  if (!r.ok || !user.email) return res.status(401).json({ error: 'Login required' });
+  const parent = await isParent(bearer.replace(/^Bearer\s+/, ''));
+  ok(res, { ok: true, cookie: setSsoCookie(req, res, user.email, parent) });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  clearSsoCookie(req, res);
+  ok(res, { ok: true });
 });
 
 // Password reset email. Always answers 200 so it can't be used to discover
