@@ -3,6 +3,10 @@
     {
       "source": "/api/:path((?!atlas/).*)",
       "destination": "/api/index"
+    },
+    {
+      "source": "/oidc/:path*",
+      "destination": "/api/index"
     }
   ]
 }

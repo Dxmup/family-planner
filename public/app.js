@@ -2195,6 +2195,12 @@ function libraryNextUrl() {
   } catch { return null; }
 }
 
+// An Audiobookshelf sign-in in progress: /oidc/authorize?... (same-site path only).
+function oidcNextPath() {
+  const n = new URLSearchParams(location.search).get('next') || '';
+  return /^\/oidc\/authorize\?/.test(n) ? n : null;
+}
+
 // Makes sure this browser has the library cookie. Returns true if it does.
 async function startLibrarySession() {
   const send = () => fetch('/api/auth/sso', {
@@ -2223,6 +2229,8 @@ async function startLibrarySession() {
   if (!auth.session) await promptLogin({ required: true });
   // Keep the library cookie fresh, and send people back to the app they came from.
   const libraryOk = await startLibrarySession();
+  const oidcNext = oidcNextPath();
+  if (oidcNext && libraryOk) { location.replace(oidcNext); return; }
   const next = libraryNextUrl();
   if (next && libraryOk) {
     next.searchParams.set('_sso', '1');   // lets the gate tell "just logged in" from "never logged in"
