@@ -1871,6 +1871,7 @@ function imageView(url) {
 // an emailed code. Add an entry here to add a tile.
 
 const APPS = [
+  { icon: '📹', name: 'Cameras', desc: 'Live view and the last 12 hours', url: 'https://cams.hensels.app', parentOnly: true },
   { icon: '🧭', name: 'Adventure Atlas', desc: 'Trips, flights and family events', url: '/atlas/', same: true },
   { icon: '📚', name: 'Books', desc: 'Ebook library', url: 'https://books.hensels.app' },
   { icon: '🎧', name: 'Audiobooks', desc: 'Audiobooks and podcasts', url: 'https://audio.hensels.app' },
@@ -1878,7 +1879,7 @@ const APPS = [
 ];
 
 async function renderApps() {
-  const tiles = APPS.map(a => a.url
+  const tiles = APPS.filter(a => !a.parentOnly || auth.session?.parent).map(a => a.url
     ? `<a class="card app-tile" href="${esc(a.url)}"${a.same ? '' : ' target="_blank" rel="noopener"'}>
          <div class="app-icon">${a.icon}</div>
          <div class="app-name">${esc(a.name)}</div>
@@ -2190,7 +2191,7 @@ keepAwake();
 function libraryNextUrl() {
   try {
     const u = new URL(new URLSearchParams(location.search).get('next') || '');
-    const ok = u.protocol === 'https:' && ['books.hensels.app', 'audio.hensels.app'].includes(u.hostname);
+    const ok = u.protocol === 'https:' && ['books.hensels.app', 'audio.hensels.app', 'cams.hensels.app'].includes(u.hostname);
     return ok ? u : null;
   } catch { return null; }
 }
