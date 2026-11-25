@@ -12,7 +12,10 @@ const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 const auth = {
   load() { try { return JSON.parse(localStorage.getItem('fp_auth')) || null; } catch { return null; } },
   save(s) { localStorage.setItem('fp_auth', JSON.stringify(s)); },
-  clear() { localStorage.removeItem('fp_auth'); },
+  clear() {
+    localStorage.removeItem('fp_auth');
+    fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});   // also ends books/audio access
+  },
   get session() { return this.load(); },
   // Refresh tokens are single-use, so concurrent callers must share one request.
   refreshing: null,
@@ -2181,6 +2184,30 @@ async function keepAwake() {
 document.addEventListener('visibilitychange', keepAwake);
 keepAwake();
 
+// ---------- family library single sign-on ----------
+
+// books. and audio. send people here to log in, then expect them back.
+function libraryNextUrl() {
+  try {
+    const u = new URL(new URLSearchParams(location.search).get('next') || '');
+    const ok = u.protocol === 'https:' && ['books.hensels.app', 'audio.hensels.app'].includes(u.hostname);
+    return ok ? u : null;
+  } catch { return null; }
+}
+
+// Makes sure this browser has the library cookie. Returns true if it does.
+async function startLibrarySession() {
+  const send = () => fetch('/api/auth/sso', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + (auth.session?.access_token || '') },
+  });
+  try {
+    let res = await send();
+    if (res.status === 401 && await auth.refresh()) res = await send();   // refresh also sets the cookie
+    return res.ok && (await res.json()).cookie === true;
+  } catch { return false; }
+}
+
 // ---------- boot ----------
 
 (async () => {
@@ -2194,6 +2221,14 @@ keepAwake();
     }
   }
   if (!auth.session) await promptLogin({ required: true });
+  // Keep the library cookie fresh, and send people back to the app they came from.
+  const libraryOk = await startLibrarySession();
+  const next = libraryNextUrl();
+  if (next && libraryOk) {
+    next.searchParams.set('_sso', '1');   // lets the gate tell "just logged in" from "never logged in"
+    location.replace(next.href);
+    return;
+  }
   await render();
 })().catch(err => {
   $('#main').innerHTML = `<div class="empty">Could not reach the server: ${esc(err.message)}</div>`;
