@@ -9,6 +9,11 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
 const app = express();
 app.use(express.json({ limit: '12mb' }));   // photo uploads arrive as base64 JSON
 
+// Login provider for Audiobookshelf (OpenID Connect). Lives under /oidc, not /api,
+// so the "login required" wall below doesn't apply; the provider checks the
+// planner's signed login cookie itself.
+require('../lib/oidc').mount(app);
+
 // Every request runs as the caller, so row-level security decides what they
 // can see (any signed-in family account) and change (parents only, apart from
 // chore/routine completion taps). Anonymous requests are rejected outright:
