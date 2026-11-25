@@ -8,16 +8,26 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
 const app = express();
 app.use(express.json({ limit: '12mb' }));   // photo uploads arrive as base64 JSON
 
-// Reads run as the anonymous role; writes run as the caller so that
-// row-level security decides who may change data (parents only).
-const anon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-app.use((req, res, next) => {
+// Every request runs as the caller, so row-level security decides what they
+// can see (any signed-in family account) and change (parents only, apart from
+// chore/routine completion taps). Anonymous requests are rejected outright:
+// the database no longer allows anonymous reads, and an empty 200 would look
+// like "no data" instead of "please log in".
+app.use('/api', (req, res, next) => {
+  if (req.path.startsWith('/auth/')) return next();
   const auth = req.headers.authorization;
-  req.sb = auth
-    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: auth } } })
-    : anon;
+  if (!auth) return res.status(401).json({ error: 'Login required' });
+  req.sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { headers: { Authorization: auth } } });
   next();
 });
+
+// Is the holder of this access token listed in public.parents?
+async function isParent(accessToken) {
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY,
+    { global: { headers: { Authorization: `Bearer ${accessToken}` } } });
+  const { data } = await sb.rpc('is_parent');
+  return data === true;
+}
 
 const ok = (res, data) => res.json(data);
 const bad = (res, msg) => res.status(400).json({ error: msg });
@@ -64,6 +74,7 @@ app.post('/api/auth/login', async (req, res) => {
     refresh_token: json.refresh_token,
     expires_at: json.expires_at,
     email: json.user?.email,
+    parent: await isParent(json.access_token),
   });
 });
 
@@ -77,6 +88,7 @@ app.post('/api/auth/refresh', async (req, res) => {
     refresh_token: json.refresh_token,
     expires_at: json.expires_at,
     email: json.user?.email,
+    parent: await isParent(json.access_token),
   });
 });
 

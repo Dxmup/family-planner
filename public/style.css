@@ -518,3 +518,23 @@ textarea { resize: vertical; }
   max-width: 160px; max-height: 120px; object-fit: cover; border-radius: 12px;
   border: 1px solid var(--line); vertical-align: middle; margin-right: 10px;
 }
+
+/* ---------- Apps launcher ---------- */
+.apps-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.app-tile {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 6px; padding: 28px 18px;
+  color: inherit; text-decoration: none;
+}
+a.app-tile:active { background: var(--accent-soft); border-color: var(--accent); }
+.app-icon { font-size: 48px; line-height: 1; }
+.app-name { font-size: 20px; font-weight: 800; }
+.app-tile.soon { opacity: 0.55; }
+.app-soon {
+  margin-top: 6px; font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--muted);
+}
