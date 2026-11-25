@@ -39,6 +39,11 @@ body {
   align-items: stretch;
   padding: 14px 10px;
   gap: 6px;
+  /* never run off the bottom of a short window: scroll instead */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
 }
 
 #clock { text-align: center; padding: 6px 0 16px; }
@@ -62,6 +67,20 @@ body {
 .nav-btn .nav-icon { font-size: 27px; }
 .nav-btn.active { background: var(--accent-soft); color: var(--accent); }
 .nav-btn:active { transform: scale(0.96); }
+
+/* Short desktop/tablet windows: tighten the nav so every button fits without scrolling. */
+@media (min-width: 641px) and (max-height: 880px) {
+  #sidebar { padding: 8px 8px; gap: 2px; }
+  #clock { padding: 2px 0 8px; }
+  #clock-time { font-size: 24px; }
+  .nav-btn { padding: 7px 4px; gap: 1px; font-size: 12px; }
+  .nav-btn .nav-icon { font-size: 21px; }
+}
+@media (min-width: 641px) and (max-height: 690px) {
+  #clock { display: none; }
+  .nav-btn { padding: 5px 4px; font-size: 11px; }
+  .nav-btn .nav-icon { font-size: 18px; }
+}
 
 /* ---------- Main ---------- */
 
