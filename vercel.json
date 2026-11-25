@@ -1,5 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "/api/index" }
+    {
+      "source": "/api/:path((?!atlas/).*)",
+      "destination": "/api/index"
+    }
   ]
 }

@@ -1721,6 +1721,7 @@ function imageView(url) {
 // an emailed code. Add an entry here to add a tile.
 
 const APPS = [
+  { icon: '🧭', name: 'Adventure Atlas', desc: 'Trips, flights and family events', url: '/atlas/', same: true },
   { icon: '📚', name: 'Books', desc: 'Ebook library', url: 'https://books.hensels.app' },
   { icon: '🎧', name: 'Audiobooks', desc: 'Audiobooks and podcasts', url: 'https://audio.hensels.app' },
   { icon: '🔧', name: 'Home inventory', desc: 'Appliances, serial numbers, manuals', url: null },
@@ -1728,7 +1729,7 @@ const APPS = [
 
 async function renderApps() {
   const tiles = APPS.map(a => a.url
-    ? `<a class="card app-tile" href="${esc(a.url)}" target="_blank" rel="noopener">
+    ? `<a class="card app-tile" href="${esc(a.url)}"${a.same ? '' : ' target="_blank" rel="noopener"'}>
          <div class="app-icon">${a.icon}</div>
          <div class="app-name">${esc(a.name)}</div>
          <div class="li-by">${esc(a.desc)}</div>
