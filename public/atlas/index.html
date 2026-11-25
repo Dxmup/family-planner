@@ -1,0 +1,1935 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hensel Family Adventure Atlas</title>
+<style>
+  :root{
+    --ink:#1A2A24; --pine:#24463C; --pine2:#2F5A4C; --paper:#EAEDE4;
+    --card:#FBFCF8; --amber:#D2942A; --amber-deep:#A9741C; --border:#D3D8C9;
+    --muted:#5E6E62; --shadow:0 1px 2px rgba(26,42,36,.06),0 6px 20px rgba(26,42,36,.05);
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"URW Palladio L",Georgia,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","Roboto Mono",Menlo,Consolas,monospace;
+    /* theme colors */
+    --t-wa:#2F80B8; --t-sc:#7A5AF0; --t-an:#A9741C; --t-na:#3E8E5A;
+    --t-hi:#A6492E; --t-tp:#C7477E; --t-fo:#E08A2B; --t-wk:#1F9E92;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+  a{color:var(--pine2)}
+
+  /* ---------- masthead ---------- */
+  header.mast{background:
+      radial-gradient(120% 140% at 90% -20%,rgba(210,148,42,.16),transparent 60%),
+      linear-gradient(180deg,#204137,#1A322B);
+    color:#EDEFE7;border-bottom:3px solid var(--amber)}
+  .mast .wrap{padding:36px 24px 30px}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--amber);margin:0 0 10px}
+  .mast h1{font-family:var(--serif);font-weight:600;font-size:clamp(30px,5vw,46px);
+    line-height:1.02;margin:0;text-wrap:balance;letter-spacing:-.01em}
+  .mast p.sub{max-width:60ch;margin:12px 0 0;color:#C7D1C6;font-size:16px}
+  .stats{display:flex;flex-wrap:wrap;gap:26px;margin-top:22px}
+  .stat{display:flex;flex-direction:column;gap:2px}
+  .stat b{font-family:var(--mono);font-size:26px;font-weight:600;color:#fff;
+    font-variant-numeric:tabular-nums;line-height:1}
+  .stat span{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:#9DA99F}
+
+  section{padding:40px 0}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin:0 0 6px}
+  .sec-head h2{font-family:var(--serif);font-weight:600;font-size:26px;margin:0;letter-spacing:-.01em}
+  .sec-num{font-family:var(--mono);font-size:12px;color:var(--amber-deep);letter-spacing:.1em;
+    border:1px solid var(--border);border-radius:100px;padding:3px 9px;background:var(--card)}
+  .sec-desc{color:var(--muted);max-width:70ch;margin:0 0 26px;font-size:15px}
+
+  /* ---------- stopover network ---------- */
+  .corridors{display:flex;flex-direction:column;gap:14px}
+  .corridor{background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:16px 18px;box-shadow:var(--shadow)}
+  .corridor h3{margin:0 0 3px;font-family:var(--sans);font-size:15px;font-weight:700}
+  .corridor .cor-tag{font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--amber-deep)}
+  .route{display:flex;flex-wrap:wrap;align-items:center;gap:0;margin-top:12px;overflow-x:auto}
+  .node{display:inline-flex;align-items:center;gap:7px;padding:5px 12px 5px 10px;
+    border-radius:100px;font-size:13.5px;font-weight:600;white-space:nowrap;
+    border:1.5px solid var(--pine2);background:var(--card);color:var(--pine)}
+  .node .dot{width:9px;height:9px;border-radius:50%;background:var(--pine2);flex:none}
+  .node.home{background:var(--pine);color:#fff;border-color:var(--pine)}
+  .node.home .dot{background:var(--amber)}
+  .node.stay{background:#FBF3E2;border-color:var(--amber);color:var(--amber-deep)}
+  .node.stay .dot{background:var(--amber)}
+  .node.pass{border-style:dashed;color:var(--muted);border-color:var(--border);font-weight:500}
+  .node.pass .dot{background:var(--border)}
+  .seg{font-family:var(--mono);font-size:11.5px;color:var(--muted);padding:0 9px;
+    font-variant-numeric:tabular-nums;white-space:nowrap;flex:none}
+  .seg::before{content:"── ";letter-spacing:-1px;color:var(--border)}
+  .seg::after{content:" ─▸";letter-spacing:-1px;color:var(--amber)}
+  .branch{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:9px;
+    padding-left:2px}
+  .branch b{color:var(--pine);font-family:var(--sans);font-weight:600}
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;font-size:12.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .legend .k{width:22px;height:12px;border-radius:100px;flex:none}
+  .k.home{background:var(--pine)} .k.stay{background:#FBF3E2;border:1.5px solid var(--amber)}
+  .k.pass{border:1.5px dashed var(--border)}
+
+  /* ---------- filter bar ---------- */
+  .toolbar{position:sticky;top:44px;z-index:20;background:rgba(234,237,228,.92);
+    backdrop-filter:blur(8px);border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+    padding:14px 0}
+  .toolbar .wrap{display:flex;flex-direction:column;gap:12px}
+  .filter-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .flabel{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);margin-right:4px;flex:none;width:64px}
+  .chip{border:1.5px solid var(--border);background:var(--card);color:var(--pine);
+    border-radius:100px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;
+    display:inline-flex;align-items:center;gap:7px;font-family:var(--sans);transition:.12s}
+  .chip .swatch{width:9px;height:9px;border-radius:50%;flex:none}
+  .chip:hover{border-color:var(--pine2)}
+  .chip[aria-pressed="true"]{background:var(--pine);color:#fff;border-color:var(--pine)}
+  .chip.type[aria-pressed="true"]{background:var(--amber-deep);border-color:var(--amber-deep)}
+  .chip.age[aria-pressed="true"]{background:var(--pine2);border-color:var(--pine2)}
+  .search{flex:1;min-width:170px;border:1.5px solid var(--border);border-radius:100px;
+    padding:7px 14px;font-size:14px;font-family:var(--sans);background:var(--card);color:var(--ink)}
+  .search:focus{outline:2px solid var(--amber);outline-offset:1px;border-color:var(--amber)}
+  .count{font-family:var(--mono);font-size:12.5px;color:var(--muted);flex:none;
+    font-variant-numeric:tabular-nums}
+  .reset{border:none;background:none;color:var(--amber-deep);font-size:12.5px;cursor:pointer;
+    text-decoration:underline;font-family:var(--sans)}
+
+  /* ---------- library ---------- */
+  .city-block{margin-top:34px;scroll-margin-top:140px}
+  .city-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:10px 14px;
+    padding-bottom:10px;border-bottom:2px solid var(--pine);margin-bottom:16px}
+  .city-head h3{font-family:var(--serif);font-size:23px;font-weight:600;margin:0;letter-spacing:-.01em}
+  .city-meta{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;gap:12px;
+    flex-wrap:wrap;align-items:center}
+  .city-meta .drive{color:var(--amber-deep);font-weight:600}
+  .city-meta .spoke-tag{border:1px solid var(--border);border-radius:100px;padding:2px 8px}
+  .city-actions{display:flex;align-items:center;gap:10px;margin-left:auto;flex:none}
+  .price-stamp{font-family:var(--mono);font-size:11px;color:var(--muted);
+    display:inline-flex;align-items:center;gap:6px}
+  .price-stamp .dotp{width:7px;height:7px;border-radius:50%;background:var(--border);flex:none}
+  .price-stamp.fresh .dotp{background:var(--t-na)}
+  .price-stamp.fresh{color:var(--pine)}
+  .updateBtn{font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;
+    border:1.5px solid var(--amber);background:#FBF3E2;color:var(--amber-deep);
+    border-radius:100px;padding:5px 12px;display:inline-flex;align-items:center;gap:6px;transition:.12s}
+  .updateBtn:hover{background:var(--amber);color:#fff}
+  .updateBtn:focus-visible{outline:2px solid var(--pine);outline-offset:2px}
+  .updateBtn svg{width:13px;height:13px}
+  .price{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--pine);
+    font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:6px;
+    border-top:1px dashed var(--border);padding-top:8px;margin-top:2px}
+  .price::before{content:"TICKET";font-size:9px;letter-spacing:.1em;color:var(--muted);font-weight:600}
+  .price.pending{color:var(--muted);font-weight:500}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    background:var(--pine);color:#fff;padding:12px 20px;border-radius:100px;font-size:14px;
+    box-shadow:0 8px 30px rgba(26,42,36,.35);opacity:0;pointer-events:none;transition:.25s;z-index:60;
+    max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast b{color:var(--amber)}
+  .overlook{width:100%;font-size:13px;color:var(--muted);font-style:italic;margin-top:2px}
+  .overlook b{font-style:normal;color:var(--amber-deep);font-family:var(--mono);font-size:11px;
+    letter-spacing:.1em;text-transform:uppercase;font-weight:600}
+  .events{width:100%;display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:9px}
+  .events .ev-lab{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--amber-deep);font-weight:600}
+  .events .ev{font-size:12.5px;text-decoration:none;color:var(--pine);background:var(--card);
+    border:1px solid var(--border);border-radius:100px;padding:3px 10px;white-space:nowrap;
+    transition:border-color .12s,background .12s}
+  .events .ev:hover{border-color:var(--amber);background:#FBF3E2;color:var(--amber-deep)}
+  .events .ev::after{content:"↗";font-size:10px;margin-left:4px;opacity:.55}
+  .tripdate{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:7px}
+  .tripdate input{font-family:var(--sans);font-size:13px;border:1.5px solid var(--border);
+    border-radius:8px;padding:5px 8px;background:var(--card);color:var(--ink)}
+  .tripevents{margin-top:18px}
+  .te-head{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--amber-deep);font-weight:600;margin-bottom:10px}
+  .te-stop{border:1px solid var(--border);background:var(--card);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
+  .te-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:9px}
+  .te-city{font-family:var(--serif);font-size:16px;font-weight:600}
+  .te-dates{font-family:var(--mono);font-size:12px;color:var(--amber-deep);background:#FBF3E2;
+    border:1px solid var(--border);border-radius:100px;padding:2px 10px}
+  .te-copy{margin-left:auto;font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;
+    border:1.5px solid var(--border);background:var(--card);color:var(--pine);border-radius:100px;padding:4px 11px}
+  .te-copy:hover{background:var(--amber);color:#fff;border-color:var(--amber)}
+  .te-live-btn{margin-left:auto;background:var(--pine);color:#fff;border-color:var(--pine)}
+  .te-live-btn:hover{background:var(--amber);border-color:var(--amber)}
+  .te-live-btn+.te-copy{margin-left:8px}
+  .te-live-btn:disabled{opacity:.6;cursor:default}
+  .te-live{margin-top:2px}
+  .te-links{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+  .te-note{font-size:12.5px;color:var(--muted);margin:0}
+  .te-found{margin-top:11px;border-top:1px dashed var(--border);padding-top:10px}
+  .te-found-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:7px}
+  .te-found-head b{color:var(--pine)}
+  .te-stamp{font-family:var(--mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  .te-found ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .te-found li{font-size:13px;line-height:1.4;padding-left:15px;position:relative}
+  .te-found li::before{content:"◆";position:absolute;left:0;top:1px;color:var(--amber);font-size:9px}
+  .te-found li b{color:var(--ink)}
+  .te-found.expired{color:var(--muted);font-size:12.5px;font-style:italic}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(292px,1fr));gap:12px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 15px;
+    box-shadow:var(--shadow);display:flex;flex-direction:column;gap:9px}
+  .card.dim{display:none}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .card h4{margin:0;font-size:15px;font-weight:700;line-height:1.25;text-wrap:balance}
+  .badge{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+    font-weight:600;padding:3px 7px;border-radius:5px;flex:none;white-space:nowrap;margin-top:1px}
+  .badge.SIG{background:var(--pine);color:#fff}
+  .badge.GEM{background:#FBF3E2;color:var(--amber-deep);border:1px solid var(--amber)}
+  .badge.SOL{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .badge.OFF{background:transparent;color:var(--pine2);border:1px dashed var(--pine2)}
+  .why{font-size:13px;color:#33443c;margin:0;line-height:1.42}
+  .why .warn{color:var(--t-hi);font-weight:600}
+  .card-tags{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:auto}
+  .tg{font-size:11px;font-weight:600;padding:2px 8px;border-radius:100px;color:#fff;
+    display:inline-flex;align-items:center;gap:5px}
+  .age{margin-left:auto;font-family:var(--mono);font-size:10px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);border:1px solid var(--border);
+    border-radius:100px;padding:2px 8px;flex:none}
+  .empty{text-align:center;color:var(--muted);padding:50px 0;font-size:15px;display:none}
+
+  /* ---------- budget ---------- */
+  .assumptions{display:flex;flex-wrap:wrap;gap:12px 14px;background:var(--card);border:1px solid var(--border);
+    border-radius:14px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:18px;align-items:flex-end}
+  .assume{display:flex;flex-direction:column;gap:5px}
+  .assume label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .ip{display:inline-flex;align-items:center;gap:3px;border:1.5px solid var(--border);border-radius:8px;
+    padding:5px 10px;background:var(--paper)}
+  .ip span{font-family:var(--mono);font-size:13px;color:var(--muted)}
+  .ip input{border:none;background:none;width:52px;font-family:var(--mono);font-size:14px;color:var(--ink);
+    font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+  .ip input::-webkit-outer-spin-button,.ip input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .ip input:focus{outline:none}
+  .ip:focus-within{border-color:var(--amber);box-shadow:0 0 0 2px rgba(210,148,42,.2)}
+  .assume-note{font-size:12px;color:var(--muted);font-style:italic;align-self:center;max-width:32ch}
+
+  .builder{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+  .builder-head{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber-deep);margin-bottom:12px}
+  .quickroutes{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .qrbtn{font-family:var(--sans);font-size:12.5px;font-weight:600;cursor:pointer;border:1.5px solid var(--pine2);
+    background:var(--card);color:var(--pine);border-radius:100px;padding:5px 13px;transition:.12s}
+  .qrbtn:hover{background:var(--pine);color:#fff}
+  #addStop{font-family:var(--sans);font-size:13.5px;border:1.5px solid var(--border);border-radius:8px;
+    padding:8px 12px;background:var(--paper);color:var(--ink);margin-bottom:14px;max-width:280px;width:100%}
+  .itinerary{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+  .itin-empty{color:var(--muted);font-size:13.5px;font-style:italic;padding:6px 0}
+  .itin-node,.itin-stop{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px}
+  .itin-node.home{background:var(--pine);color:#fff;font-weight:700;width:fit-content;font-size:14px}
+  .itin-node.home small{font-family:var(--mono);font-size:10px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;font-weight:400}
+  .itin-stop{background:#FBF3E2;border:1px solid var(--amber)}
+  .itin-stop .isc{font-weight:700;font-size:14px;color:var(--pine)}
+  .itin-stop label{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-left:auto}
+  .itin-stop .nin{width:44px;border:1.5px solid var(--border);border-radius:6px;padding:3px 6px;font-family:var(--mono);
+    font-size:13px;text-align:center;background:#fff;font-variant-numeric:tabular-nums}
+  .itin-stop .rm{border:none;background:none;color:var(--t-hi);cursor:pointer;font-size:14px;font-weight:700;padding:2px 6px;line-height:1}
+  .itin-leg{font-size:13px;color:var(--amber);padding-left:22px;line-height:.9}
+  .itin-stop{cursor:default}
+  .itin-stop .grip{cursor:grab;color:var(--amber-deep);font-size:15px;line-height:1;user-select:none;flex:none;letter-spacing:-2px}
+  .itin-stop .grip:active{cursor:grabbing}
+  .itin-stop.dragging{opacity:.4}
+  .itin-stop.drop-before{box-shadow:inset 0 3px 0 var(--pine)}
+  .itin-stop.drop-after{box-shadow:inset 0 -3px 0 var(--pine)}
+  .builder-actions{display:flex;gap:14px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .qrbtn.solid{background:var(--pine);color:#fff;border-color:var(--pine);display:inline-flex;align-items:center;gap:7px}
+  .qrbtn.solid:hover{background:var(--pine2)}
+  .qrbtn.solid svg{width:14px;height:14px}
+  .linkbtn{border:none;background:none;color:var(--amber-deep);font-size:12.5px;cursor:pointer;
+    text-decoration:underline;font-family:var(--sans)}
+
+  .tripsummary{margin-top:8px}
+  .ts-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:6px 0;font-size:14px}
+  .ts-row i{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--muted);font-style:normal;margin-right:8px}
+  .ts-row b{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:700}
+  .ts-row.sub{border-top:1px solid var(--border);margin-top:4px;color:var(--muted)}
+  .ts-row.total{border-top:2px solid var(--pine);margin-top:4px;font-size:16px;font-weight:700}
+  .ts-row.total b{color:var(--amber-deep);font-size:19px}
+  .ts-note{font-size:12.5px;color:var(--muted);margin:10px 0 0;font-style:italic}
+
+  .citybudget{width:100%;display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;
+    padding-top:10px;border-top:1px dashed var(--border);font-size:12px;align-items:baseline}
+  .citybudget .bb{font-family:var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+  .citybudget .bb i{font-style:normal;font-size:9.5px;letter-spacing:.08em;color:var(--amber-deep);margin-right:5px}
+  .citybudget .bb b{color:var(--pine);font-weight:700}
+  .citybudget .bb.tot{margin-left:auto}
+  .citybudget .bb.tot b{color:var(--amber-deep);font-size:13px}
+  .citybudget .bb small{color:var(--muted)}
+  .citybudget .est{color:var(--amber-deep);font-size:9px;border:1px solid var(--amber);border-radius:4px;padding:0 3px;margin-left:3px}
+
+  /* ---------- recommendation & flags ---------- */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;
+    box-shadow:var(--shadow)}
+  .panel h3{margin:0 0 4px;font-family:var(--serif);font-size:20px;font-weight:600}
+  .panel .lead{color:var(--muted);font-size:13.5px;margin:0 0 16px}
+  .rec{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--border)}
+  .rec:first-of-type{border-top:none}
+  .rec .move{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    font-weight:600;padding:4px 8px;border-radius:5px;height:fit-content;flex:none;white-space:nowrap}
+  .move.add{background:#E4F0E6;color:#2C6B3C}
+  .move.up{background:#FBF3E2;color:var(--amber-deep)}
+  .move.watch{background:#F6E3DD;color:var(--t-hi)}
+  .rec p{margin:0;font-size:13.5px;line-height:1.45}
+  .rec p b{font-weight:700}
+  .flag{display:flex;gap:10px;padding:11px 0;border-top:1px solid var(--border);font-size:13.5px}
+  .flag:first-of-type{border-top:none}
+  /* ---------- destination playbooks ---------- */
+  .pb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(345px,1fr));gap:16px}
+  .pb{background:var(--card);border:1px solid var(--border);border-radius:14px;
+    padding:18px 18px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+  .pb-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .pb-head h3{font-family:var(--serif);font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em}
+  .pb-drive{font-family:var(--mono);font-size:11px;color:var(--amber-deep);white-space:nowrap;flex:none}
+  .pb-pitch{color:var(--pine);font-style:italic;font-family:var(--serif);font-size:15px;
+    margin:6px 0 15px;line-height:1.42}
+  .pb-day{list-style:none;margin:0 0 15px;padding:0}
+  .pb-day li{display:grid;grid-template-columns:70px 1fr;gap:10px;padding:0 0 11px}
+  .pb-day li:last-child{padding-bottom:0}
+  .pb-when{font-family:var(--mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--amber-deep);padding-top:2px}
+  .pb-stop{font-weight:700;font-size:14px;line-height:1.3}
+  .pb-note{color:var(--muted);font-size:12.5px;line-height:1.4;margin-top:1px}
+  .pb-meta{border-top:1px solid var(--border);padding-top:12px;margin-top:auto;
+    display:flex;flex-direction:column;gap:7px}
+  .pb-meta .row{display:grid;grid-template-columns:74px 1fr;gap:9px;font-size:13px}
+  .pb-meta .lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--muted);padding-top:3px}
+  .pb-meta .val{color:var(--ink);line-height:1.4}
+  .pb-meta .val b{color:var(--pine);font-weight:700}
+  @media(max-width:520px){.pb-day li{grid-template-columns:58px 1fr}.pb-meta .row{grid-template-columns:64px 1fr}}
+
+  .flag .cal{font-family:var(--mono);font-size:11px;color:var(--amber-deep);flex:none;width:98px;
+    font-weight:600;padding-top:1px}
+  .flag p{margin:0;line-height:1.4}
+  footer{background:#1A322B;color:#9DA99F;padding:28px 0;font-size:13px;text-align:center;
+    border-top:3px solid var(--amber)}
+  footer b{color:#EDEFE7;font-family:var(--serif);font-weight:600}
+
+  @media(max-width:760px){
+    .split{grid-template-columns:1fr}
+    .flabel{width:100%}
+    .stats{gap:18px}
+  }
+  @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* ---------- site nav ---------- */
+  .site-nav{background:var(--pine);border-bottom:2px solid rgba(255,255,255,.1);
+    position:sticky;top:0;z-index:30}
+  .nav-wrap{display:flex;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .nav-wrap::-webkit-scrollbar{display:none}
+  .nav-link{display:flex;align-items:center;gap:6px;padding:11px 16px;color:rgba(255,255,255,.65);
+    text-decoration:none;font-size:13px;font-weight:600;white-space:nowrap;letter-spacing:.01em;
+    border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s}
+  .nav-link svg{width:14px;height:14px;flex:none}
+  .nav-link:hover{color:#fff;background:rgba(255,255,255,.06)}
+  .nav-link.active{color:var(--amber);border-bottom-color:var(--amber)}
+
+  /* ---------- planner sub-panels ---------- */
+  .sp{margin-bottom:32px}
+  .sp-title{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--amber-deep);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;
+    padding-bottom:9px;border-bottom:2px solid var(--border)}
+  .sp-title svg{width:13px;height:13px;flex:none;opacity:.8}
+
+  /* ---------- trip finder (moved from inline) ---------- */
+  .tf-controls{display:flex;flex-wrap:wrap;gap:12px 14px;align-items:flex-end;margin-bottom:8px}
+  .tf-hint{font-size:12px;color:var(--muted);font-style:italic;margin:0 0 12px;max-width:60ch}
+  #tfResults{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .tf-card{border:1px solid var(--border);border-radius:12px;padding:14px 15px;background:var(--card);
+    box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
+  .tf-top{font-weight:700;font-size:15px;line-height:1.25;text-wrap:balance}
+  .tf-meta{font-size:12px;color:var(--muted);line-height:1.4}
+  .tf-cost{font-size:12px;color:var(--muted);line-height:1.45}
+  .tf-tot{font-weight:700;font-size:15px}
+  .tf-tot b{color:var(--amber-deep);font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .tf-head{font-size:12.5px;color:#2e9e5b;font-weight:600}
+  .tf-empty{color:var(--muted);font-size:13.5px;font-style:italic;padding:6px 0}
+  .tf-card .qrbtn{margin-top:4px;align-self:flex-start}
+  @media(max-width:560px){#tfResults{grid-template-columns:1fr}}
+
+  /* ---------- drive vs fly (moved from inline) ---------- */
+  .flycompare{margin-top:2px}
+  .fly-controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
+  .fly-controls label{display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:600}
+  .fly-controls .ip{max-width:130px}
+  .mc-head{font-weight:700;margin-bottom:8px;font-size:14px;color:var(--pine)}
+  .mc-head small{font-weight:500;opacity:.7;font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+  .mc-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .mc-card{border:1px solid rgba(128,128,128,.3);border-radius:10px;padding:12px}
+  .mc-card.win{border-color:#2e9e5b;box-shadow:0 0 0 1px #2e9e5b inset;background:#f4faf5}
+  .mc-mode{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;opacity:.75;font-weight:600}
+  .mc-tot{font-size:1.4rem;font-weight:800;margin:2px 0;font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .mc-bk{font-size:.78rem;opacity:.7;line-height:1.45}
+  .mc-verdict{margin-top:10px;font-size:.95rem;font-weight:600}
+  .mc-verdict.muted{opacity:.6;font-weight:500}
+  @media(max-width:560px){.mc-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+
+<header class="mast">
+  <div class="wrap">
+    <p class="eyebrow">Family Adventure Portfolio · Est. Greenville, SC</p>
+    <h1>The Hensel Family Adventure Atlas</h1>
+    <p class="sub">A living field guide to the quarterly-adventure portfolio — every destination a playbook, every long drive broken into a chain of discoveries. Built for two girls (K &amp; 4th grade) who love water, animals, hands-on wonder, and the roads less taken. Powered by a live database with flight cost comparison and budget-to-trip matching.</p>
+    <div class="stats">
+      <div class="stat"><b id="cityCount">23</b><span>Cities scouted</span></div>
+      <div class="stat"><b id="totCount">0</b><span>Attractions logged</span></div>
+      <div class="stat"><b id="corridorCount">5</b><span>Travel corridors</span></div>
+      <div class="stat"><b id="themeCount">8</b><span>Experience themes</span></div>
+    </div>
+  </div>
+</header>
+
+<nav class="site-nav" aria-label="Site navigation">
+  <div class="wrap nav-wrap">
+    <a class="nav-link" href="/" style="color:var(--amber)">← Planner</a>
+    <a class="nav-link" href="#network">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7l-7 10"/><path d="M12 7l7 10"/><path d="M6 19h12"/></svg>
+      Corridors</a>
+    <a class="nav-link" href="#budget">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      Trip Planner</a>
+    <a class="nav-link" href="#library">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+      Attractions</a>
+    <a class="nav-link" href="#playbooks">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+      Playbooks</a>
+    <a class="nav-link" href="#strategy">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Strategy</a>
+  </div>
+</nav>
+
+<section id="network">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">01</span><h2>The Stopover Network</h2></div>
+    <p class="sec-desc">Rather than drive ten hours straight, we chain hub cities so the travel <em>becomes</em> the vacation. Every corridor radiates from home; each stop is itself a future destination. Solid amber stops are overnight-worthy playbooks in their own right; dashed stops are lighter pass-throughs (still worth a meal and a leg-stretch).</p>
+    <div class="corridors" id="corridors"></div>
+    <div class="legend">
+      <span><i class="k home"></i> Home base — Greenville</span>
+      <span><i class="k stay"></i> Overnight-worthy hub (own playbook)</span>
+      <span><i class="k pass"></i> Pass-through / gateway stop</span>
+      <span style="font-family:var(--mono);font-size:11px">▸ drive time between stops</span>
+    </div>
+  </div>
+</section>
+
+<section id="budget">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">02</span><h2>Trip Planner</h2></div>
+    <p class="sec-desc">Set your assumptions once and every city re-prices automatically. Use <b>Trip Finder</b> to discover what fits a budget, <b>Trip Builder</b> to chain stops into a full itinerary, and <b>Drive vs. Fly</b> to compare modes with live fare lookup from GSP, ATL, and CLT.</p>
+
+    <!-- ── Travel Assumptions ───────────────────────────────────── -->
+    <div class="sp">
+      <div class="sp-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        Travel Assumptions
+      </div>
+      <div class="assumptions">
+        <div class="assume"><label>Gas / gal</label><div class="ip"><span>$</span><input id="gas" type="number" step="0.05" min="0" value="3.15"></div></div>
+        <div class="assume"><label>Miles / gal</label><div class="ip"><input id="mpg" type="number" step="1" min="1" value="25"></div></div>
+        <div class="assume"><label>Food / day</label><div class="ip"><span>$</span><input id="food" type="number" step="5" min="0" value="90"></div></div>
+        <div class="assume"><label>Hotel / night</label><div class="ip"><span>$</span><input id="hotel" type="number" step="10" min="0" value="150"></div></div>
+        <div class="assume"><label>Nights / stop</label><div class="ip"><input id="nights" type="number" step="1" min="0" value="2"></div></div>
+        <div class="assume"><label>Buffer %</label><div class="ip"><input id="buffer" type="number" step="1" min="0" value="10"></div></div>
+        <div class="assume"><label>Car rental / day</label><div class="ip"><span>$</span><input id="carRate" type="number" step="5" min="0" value="65"></div></div>
+        <div class="assume"><label>Local mi / day</label><div class="ip"><input id="localMi" type="number" step="5" min="0" value="30"></div></div>
+        <div class="assume"><label>Adults</label><div class="ip"><input id="adults" type="number" step="1" min="1" value="2"></div></div>
+        <div class="assume"><label>Kids</label><div class="ip"><input id="kids" type="number" step="1" min="0" value="2"></div></div>
+        <p class="assume-note">Hotel is a placeholder until you refresh a city — then its real rate replaces the default. Car rental &amp; local miles feed the Drive vs. Fly comparison below.</p>
+      </div>
+    </div>
+
+    <!-- ── Trip Finder ──────────────────────────────────────────── -->
+    <div class="sp">
+      <div class="sp-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Trip Finder — Budget to Destination Matching
+      </div>
+      <div class="tripfinder" id="tripFinder">
+        <div class="tf-controls">
+          <div class="assume"><label>Budget $</label><div class="ip"><span>$</span><input id="tfBudget" type="number" step="100" min="0" value="2000"></div></div>
+          <div class="assume"><label>Trip nights</label><div class="ip"><input id="tfNights" type="number" step="1" min="1" value="4"></div></div>
+          <button class="qrbtn solid" id="tfGo">Find trips that fit</button>
+        </div>
+        <p class="tf-hint">Uses the assumptions above (gas, food, hotel, buffer) to cost each option, then shows the leftover budget as an attractions &amp; meals cushion.</p>
+        <div id="tfResults"></div>
+      </div>
+    </div>
+
+    <!-- ── Trip Builder ──────────────────────────────────────────── -->
+    <div class="sp">
+      <div class="sp-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
+        Trip Builder — Chain Stops Into One Estimate
+      </div>
+      <div class="quickroutes" id="quickroutes"></div>
+      <select id="addStop" aria-label="Add a stop to your trip"></select>
+      <div class="builder-actions">
+        <button class="qrbtn solid" id="recommendBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13a5 5 0 0 1 0 10H8a5 5 0 0 1-5-5"/><path d="M16 3l3 3-3 3"/></svg>
+          Recommend efficient route</button>
+        <button class="linkbtn" id="clearTrip">Clear trip</button>
+        <label class="tripdate">Trip start <input type="date" id="tripStart"></label>
+        <span class="assume-note" style="margin:0">Drag the ⠿ handle to reorder stops.</span>
+      </div>
+      <div class="itinerary" id="itinerary"></div>
+      <div class="tripsummary" id="tripSummary"></div>
+      <div class="tripevents" id="tripEvents"></div>
+    </div>
+
+    <!-- ── Drive vs. Fly ─────────────────────────────────────────── -->
+    <div class="sp">
+      <div class="sp-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 2c-2-2-4-2-5.5-.5L10 5 1.8 6.2l5.8 5.8L6.2 16l3 3 3-1.4 5.8 5.8 1.2-8.2z"/></svg>
+        Drive vs. Fly — Cost Comparison
+      </div>
+      <div class="flycompare" id="flyWrap">
+        <div class="fly-controls">
+          <label>Depart from <select id="depAirport"><option value="GSP">GSP · Greenville (home)</option><option value="ATL">ATL · Atlanta (+drive)</option><option value="CLT">CLT · Charlotte (+drive)</option></select></label>
+          <label>RT airfare (party) <div class="ip"><span>$</span><input id="airfare" type="number" step="10" min="0" placeholder="0"></div></label>
+          <button class="qrbtn" id="fetchFare" type="button">✈️ Fetch cheapest fare</button>
+          <span class="assume-note" id="fareNote" style="margin:0"></span>
+        </div>
+        <div class="modecompare" id="modeCompare"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="toolbar">
+  <div class="wrap">
+    <div class="filter-row" id="themeRow"><span class="flabel">Theme</span></div>
+    <div class="filter-row">
+      <span class="flabel">Refine</span>
+      <button class="chip type" data-type="SIG" aria-pressed="false">Signature</button>
+      <button class="chip type" data-type="GEM" aria-pressed="false">Hidden gem</button>
+      <button class="chip type" data-type="OFF" aria-pressed="false">Off-beat</button>
+      <button class="chip age" data-age="little" aria-pressed="false">Great for age 5</button>
+      <button class="chip age" data-age="older" aria-pressed="false">Best for 9–10</button>
+      <input class="search" id="search" type="search" placeholder="Search attractions, e.g. manatee, fossil, splash…" aria-label="Search attractions">
+    </div>
+    <div class="filter-row" style="gap:14px">
+      <span class="count" id="count"></span>
+      <button class="reset" id="reset">Clear all filters</button>
+    </div>
+  </div>
+</div>
+
+<section id="library" style="padding-top:26px">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">03</span><h2>The Attraction Library</h2></div>
+    <p class="sec-desc">Every logged attraction, tagged by theme and flagged <b>Signature</b> (marquee), <b>Solid</b>, <b>Hidden gem</b>, or <b>Off-beat</b>, with an age read for the girls. Filter by theme above to plan a trip around what they're into this season. Each city also carries <b>Check events →</b> links — Time Out–style guides, official calendars, and family-event sites that open live in a new tab, so you can see what's on for a specific weekend.</p>
+    <div id="cities"></div>
+    <div class="empty" id="empty">No attractions match those filters. <button class="reset" id="reset2" style="font-size:14px">Clear filters</button></div>
+  </div>
+</section>
+
+<section id="playbooks">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Destination Playbooks</h2></div>
+    <p class="sec-desc">Every hub distilled into one runnable day for a 5- and 9-year-old — a signature must-do, a rainy-day pivot, where to eat, where to base, and the one logistics tip that saves the trip. Anchored to real attractions from the library above.</p>
+    <div class="pb-grid" id="pbGrid"></div>
+  </div>
+</section>
+
+<section id="strategy" style="background:linear-gradient(180deg,transparent,#E3E7DC)">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">05</span><h2>Challenging the Tier List</h2></div>
+    <p class="sec-desc">The scour didn't just fill gaps — it changed the ranking. Here's where I'd revise the portfolio, and the calendar traps to plan around.</p>
+    <div class="split">
+      <div class="panel">
+        <h3>Re-tier recommendations</h3>
+        <p class="lead">Fresh-eyes moves based on what the research surfaced.</p>
+        <div class="rec"><span class="move add">Add</span><p><b>Atlanta</b> — glaringly absent, yet ~2h away with a top-5 world aquarium, Zoo Atlanta, Fernbank &amp; Stone Mountain. Make it a formal <b>hub</b> and Tier-1 mini-destination; it doubles as your Florida-route launch point.</p></div>
+        <div class="rec"><span class="move add">Add</span><p><b>Charleston</b> — hits walkability, food, beaches, history &amp; a sea-turtle-hospital aquarium better than several Tier-2 picks. Belongs in Tier 1–2.</p></div>
+        <div class="rec"><span class="move add">Add</span><p><b>Knoxville</b> — your gateway to the entire KY/OH corridor, and a real destination itself (Zoo Knoxville, Ijams, the Smokies 45 min on). Promote to a hub.</p></div>
+        <div class="rec"><span class="move up">Elevate</span><p><b>Huntsville</b> (from Tier 3) — Space &amp; Rocket Center + Cook Museum is the best science-and-engineering day in range, tailor-made for your 4th grader.</p></div>
+        <div class="rec"><span class="move up">Elevate</span><p><b>Columbus</b> (from Tier 3) — COSI + Jack Hanna's zoo + The Wilds safari out-punch Indianapolis for your themes.</p></div>
+        <div class="rec"><span class="move watch">Reconsider</span><p><b>Philadelphia</b> — at 9.5h it competes with closer, richer DC. Treat it as a <b>fly, not drive</b> trip, or pair it onto a DC itinerary rather than its own quarterly.</p></div>
+        <div class="rec"><span class="move watch">Note</span><p><b>St. Louis</b> earns its spot (City Museum + free world-class zoo), but its 9.5h drive <b>only works via the Chattanooga→Nashville chain</b> — name that dependency in its playbook.</p></div>
+      </div>
+      <div class="panel">
+        <h3>Verify before you book</h3>
+        <p class="lead">Timing flags the agents surfaced — check official sites near your dates.</p>
+        <div class="flag"><span class="cal">Nov 15–Mar 31</span><p><b>Crystal River manatee swims</b> only run in season. Off-season, Homosassa Springs' underwater "Fish Bowl" has manatees year-round.</p></div>
+        <div class="flag"><span class="cal">Oct 26 '26–<br>Mar 24 '27</span><p><b>Universal's Volcano Bay closed</b> for refurb — pivot to Aquatica if you're in Orlando that window.</p></div>
+        <div class="flag"><span class="cal">Thru mid-Jul '26</span><p><b>Nashville's Parthenon</b> closed for HVAC work — verify reopening; the free park around it stays open.</p></div>
+        <div class="flag"><span class="cal">2026 season</span><p><b>Savannah Bananas</b> use a ticket lottery and travel much of the year — confirm home dates and enter early.</p></div>
+        <div class="flag"><span class="cal">From Apr 29 '26</span><p><b>Rainbow Springs</b> headspring now requires reservations to enter.</p></div>
+        <div class="flag"><span class="cal">Location</span><p><b>Mote SEA</b> is the new Sarasota/UTC aquarium — the old City Island Mote is closed. Go to UTC.</p></div>
+        <div class="flag"><span class="cal">Age minimums</span><p><b>Discovery Cove dolphin swim</b> &amp; <b>Devil's Den snorkel</b> are 6+, sidelining your 5-year-old from that one activity (easy on-site alternatives exist).</p></div>
+        <div class="flag"><span class="cal">Seasonal</span><p>Most outdoor <b>water parks &amp; spring tubing</b> run ~late-May–early-Aug only. Confirm 2026 dates.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b>Hensel Family Adventure Atlas</b> — a living document. New scouts, playbooks &amp; lessons-learned fold in over time.<br>
+    <span style="font-size:12px">Drive times are approximate from Greenville, SC · verify seasonal hours &amp; tickets before booking.</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+let THEMES={
+  wa:["Water","var(--t-wa)"], sc:["Science","var(--t-sc)"], an:["Animals","var(--t-an)"],
+  na:["Nature","var(--t-na)"], hi:["History","var(--t-hi)"], tp:["Theme Parks","var(--t-tp)"],
+  fo:["Food","var(--t-fo)"], wk:["Walkability","var(--t-wk)"]
+};
+let SPOKES={
+  NW:"NW · Tennessee Valley → Gateway West", N:"N · Blue Ridge → Ohio Valley",
+  NE:"NE · Shenandoah → Mid-Atlantic", SE:"SE · Lowcountry → First Coast",
+  S:"S · I-75 → Nature Coast"
+};
+let CITIES={
+  Atlanta:{spoke:"S",drive:"~2h",overlook:"Doll's Head Trail — a free folk-art walk through an old quarry made of salvaged doll heads."},
+  Chattanooga:{spoke:"NW",drive:"~2.5h",overlook:"Reflection Riding — red wolves & raptors on 15 miles of quiet trails."},
+  Nashville:{spoke:"NW",drive:"~4h",overlook:"Lane Motor Museum's free rides in the world's weirdest cars."},
+  Huntsville:{spoke:"NW",drive:"~3.75h",overlook:"Lowe Mill ARTS — a textile mill packed with 200+ working artists."},
+  Knoxville:{spoke:"N",drive:"~2h",overlook:"Fort Dickerson Quarry — a turquoise swimming hole minutes from downtown."},
+  "St. Louis":{spoke:"NW",drive:"~9.5h",overlook:"Turtle Playground — free giant turtles by City Museum's own creator."},
+  Louisville:{spoke:"N",drive:"~5.5h",overlook:"Falls of the Ohio — walk 390-million-year-old fossil beds."},
+  Cincinnati:{spoke:"N",drive:"~6h",overlook:"American Sign Museum's live Saturday neon-bending demos."},
+  Columbus:{spoke:"N",drive:"~7h",overlook:"The Wilds open-air safari & Slate Run's living 1880s farm."},
+  Indianapolis:{spoke:"N",drive:"~7.5h",overlook:"Garfield Park Conservatory & the City Market Catacombs."},
+  "Washington DC":{spoke:"NE",drive:"~7h",overlook:"Planet Word — a free, voice-activated language museum."},
+  Williamsburg:{spoke:"NE",drive:"~7h",overlook:"Virginia Living Museum — zoo + aquarium + nature + fossil dig in one."},
+  Pittsburgh:{spoke:"NE",drive:"~7h",overlook:"Idlewild & SoakZone — the original Mister Rogers trolley."},
+  Philadelphia:{spoke:"NE",drive:"~9.5h",overlook:"Elmwood Park Zoo — hand-feed giraffes & zipline over the bison."},
+  Savannah:{spoke:"SE",drive:"~3.75h",overlook:"UGA Aquarium on Skidaway — a cheap, crowd-free hands-on marine day."},
+  Charleston:{spoke:"SE",drive:"~3.5h",overlook:"Center for Birds of Prey — owls gliding inches over your head."},
+  "St. Augustine":{spoke:"SE",drive:"~5.5h",overlook:"Free ranger-led fossil shark-tooth walks at low tide."},
+  Orlando:{spoke:"S",drive:"~7h",overlook:"Blue Spring's winter manatee gathering, 40 min off the park grid."},
+  "Tampa / St. Pete":{spoke:"S",drive:"~7.5h",overlook:"Sunken Gardens + Great Explorations, a calm walkable St. Pete half-day."},
+  "Nature Coast (Crystal River)":{spoke:"S",drive:"~7h",overlook:"Homosassa's underwater Fish Bowl — manatees face-to-glass in any season."},
+  Charlotte:{spoke:"NE",drive:"~1.5h",overlook:"U.S. National Whitewater Center — free riverside trails, paid rafting on an Olympic-caliber course."},
+  "Gatlinburg / Pigeon Forge":{spoke:"N",drive:"~2.25h",overlook:"Fighting Creek Trail at Sugarlands — flip a mossy rock in the world's salamander capital."},
+  "NC Triangle (Raleigh–Durham)":{spoke:"NE",drive:"~3.5h",overlook:"Duke Lemur Center — the world's largest lemur sanctuary, by advance reservation."}
+};
+// Live event-calendar resources per city (verified Jul 2026). Artifacts can't fetch, so these
+// open the real calendars in a new tab — check them dynamically for a given travel weekend.
+let EVENTS={
+  "Atlanta":[{n:"Time Out Atlanta",u:"https://www.timeout.com/atlanta/things-to-do",d:"curated things-to-do & events"},{n:"Discover Atlanta Events",u:"https://discoveratlanta.com/events/all/",d:"official CVB events calendar"},{n:"Atlanta Parent Top Events",u:"https://www.atlantaparent.com/topevents/",d:"family things-to-do this week"},{n:"Creative Loafing Atlanta",u:"https://creativeloafing.com/events",d:"alt-weekly events calendar"}],
+  "Chattanooga":[{n:"The Pulse Events",u:"https://www.chattanoogapulse.com/local-events-calendar",d:"alt-weekly arts & entertainment"},{n:"Visit Chattanooga Events",u:"https://www.visitchattanooga.com/events/",d:"official CVB events calendar"},{n:"Macaroni KID Chattanooga",u:"https://chattanooga.macaronikid.com/",d:"family & kids events"},{n:"NOOGAtoday Events",u:"https://6amcity.com/tn/chattanooga/events",d:"local daily things-to-do"}],
+  "Nashville":[{n:"Do615",u:"https://do615.com/",d:"curated things-to-do listings"},{n:"Visit Music City Events",u:"https://www.visitmusiccity.com/events",d:"official CVB events calendar"},{n:"Nashville Parent Calendar",u:"https://www.nashvilleparent.com/calendar/",d:"family & kids events calendar"},{n:"Nashville Scene Calendar",u:"https://www.nashvillescene.com/calendar/",d:"alt-weekly events calendar"}],
+  "Huntsville":[{n:"We Are Huntsville",u:"https://wearehuntsville.com/event-calendar/",d:"local things-to-do calendar"},{n:"Visit Huntsville Events",u:"https://www.huntsville.org/events/",d:"official CVB events calendar"},{n:"Rocket City Mom Events",u:"https://www.rocketcitymom.com/events/",d:"family & kids events calendar"}],
+  "Knoxville":[{n:"Visit Knoxville Events",u:"https://www.visitknoxville.com/events/",d:"official CVB & this-weekend calendar"},{n:"Downtown Knoxville Calendar",u:"https://www.downtownknoxville.org/events/",d:"downtown festivals & markets"},{n:"Inside of Knoxville Events",u:"https://insideofknoxville.com/category/events/",d:"local things-to-do blog"},{n:"Macaroni KID Knoxville",u:"https://knoxville.macaronikid.com/events/calendar",d:"family & kids events calendar"}],
+  "Gatlinburg / Pigeon Forge":[{n:"My Pigeon Forge Events",u:"https://www.mypigeonforge.com/events/",d:"official Pigeon Forge festivals"},{n:"Gatlinburg Events",u:"https://www.gatlinburg.com/events/",d:"official Gatlinburg CVB calendar"},{n:"Dollywood Festivals",u:"https://www.dollywood.com/themepark/festivals/",d:"Dollywood seasonal festivals"}],
+  "St. Louis":[{n:"St. Louis Magazine Calendar",u:"https://www.stlmag.com/calendar/",d:"city magazine curated events"},{n:"Explore St. Louis Events",u:"https://explorestlouis.com/events/",d:"official CVB events & festivals"},{n:"Fun 4 STL Kids",u:"https://fun4stlkids.com/calendar",d:"family events calendar"},{n:"Riverfront Times Events",u:"https://www.riverfronttimes.com/st-louis/EventSearch",d:"alt-weekly events listings"}],
+  "Louisville":[{n:"Do502",u:"https://do502.com/events/weekend",d:"things to do this weekend"},{n:"Go To Louisville Events",u:"https://www.gotolouisville.com/events/",d:"official tourism events calendar"},{n:"Macaroni KID Louisville",u:"https://centrallouisville.macaronikid.com/events/calendar",d:"family & kids events calendar"},{n:"LEO Weekly Things to Do",u:"https://www.leoweekly.com/events/",d:"alt-weekly events & things to do"}],
+  "Cincinnati":[{n:"Cincinnati Magazine",u:"https://www.cincinnatimagazine.com/things-to-do/",d:"city magazine weekend picks"},{n:"Visit Cincy Events",u:"https://www.visitcincy.com/events/",d:"official CVB events calendar"},{n:"Macaroni KID Cincinnati",u:"https://cincinnatimetro.macaronikid.com/events",d:"family & kids events calendar"},{n:"CityBeat Events",u:"https://community.citybeat.com/cincinnati/EventSearch",d:"alt-weekly searchable listings"}],
+  "Columbus":[{n:"614NOW Events",u:"https://614now.com/events",d:"city magazine things-to-do"},{n:"Experience Columbus Events",u:"https://www.experiencecolumbus.com/events/",d:"official CVB events calendar"},{n:"Macaroni KID Columbus",u:"https://nwcolumbus.macaronikid.com/events/calendar",d:"family & kids events calendar"},{n:"Columbus Underground",u:"https://columbusunderground.com/event-calendar/",d:"local alt events calendar"}],
+  "Indianapolis":[{n:"Indianapolis Monthly",u:"https://www.indianapolismonthly.com/things-to-do/events",d:"city magazine events calendar"},{n:"Visit Indy Events",u:"https://www.visitindy.com/events/",d:"official CVB events calendar"},{n:"Macaroni KID Indianapolis",u:"https://indianapolis.macaronikid.com/events",d:"family & kids events calendar"},{n:"Do317 Events",u:"https://do317.com/events",d:"local things-to-do calendar"}],
+  "Pittsburgh":[{n:"Pittsburgh Magazine",u:"https://www.pittsburghmagazine.com/things-to-do/",d:"city magazine events & picks"},{n:"Visit Pittsburgh Events",u:"https://www.visitpittsburgh.com/events/",d:"official CVB events calendar"},{n:"Macaroni KID Pittsburgh",u:"https://cityofpittsburgh.macaronikid.com/events/calendar",d:"family & kids events calendar"},{n:"Pittsburgh City Paper",u:"https://www.pghcitypaper.com/pittsburgh/EventSearch",d:"alt-weekly events listings"}],
+  "Washington DC":[{n:"Time Out Washington DC",u:"https://www.timeout.com/washington-dc/things-to-do",d:"city magazine things-to-do"},{n:"Destination DC Events",u:"https://washington.org/find-dc-listings/dc-events",d:"official DC tourism calendar"},{n:"Washington Parent Weekend",u:"https://washingtonparent.com/things-to-do-with-kids-in-the-dmv-this-weekend/",d:"family things-to-do this weekend"},{n:"Kids Out and About DMV",u:"https://dmv.kidsoutandabout.com/",d:"kids & family events guide"}],
+  "Williamsburg":[{n:"Colonial Williamsburg Events",u:"https://www.colonialwilliamsburg.org/events/",d:"historic-area daily calendar"},{n:"Visit Williamsburg Events",u:"https://www.visitwilliamsburg.com/events",d:"official tourism events & festivals"},{n:"Macaroni KID Williamsburg",u:"https://williamsburg.macaronikid.com/events",d:"family & kids events calendar"}],
+  "Philadelphia":[{n:"Time Out Philadelphia",u:"https://www.timeout.com/philadelphia/things-to-do",d:"city magazine things-to-do"},{n:"Visit Philadelphia Events",u:"https://www.visitphilly.com/events/",d:"official tourism events guide"},{n:"Mommy Poppins Philly",u:"https://mommypoppins.com/things-to-do-in-Philly-this-weekend-kids-families",d:"family things-to-do this weekend"}],
+  "Charlotte":[{n:"Axios Charlotte",u:"https://www.axios.com/local/charlotte",d:"local news & things-to-do"},{n:"Charlotte's Got A Lot",u:"https://www.charlottesgotalot.com/events",d:"official CVB events calendar"},{n:"Fun 4 Charlotte Kids",u:"https://fun4charlottekids.com/calendar",d:"family events calendar"},{n:"Charlotte On The Cheap",u:"https://www.charlotteonthecheap.com/",d:"free & cheap local happenings"}],
+  "NC Triangle (Raleigh–Durham)":[{n:"INDY Week Calendar",u:"https://indyweek.com/calendar/",d:"alt-weekly Triangle events guide"},{n:"Triangle on the Cheap",u:"https://triangleonthecheap.com/",d:"free/cheap family weekend picks"},{n:"visitRaleigh Events",u:"https://www.visitraleigh.com/events/",d:"official CVB events calendar"}],
+  "Savannah":[{n:"Connect Savannah Events",u:"https://community.connectsavannah.com/savannah/EventSearch?v=list",d:"alt-weekly events listings"},{n:"Southern Mamas",u:"http://www.southernmamas.com/event-calendar-kids-savannah-activities/",d:"local kids-activity calendar"},{n:"Macaroni KID Savannah",u:"https://savannahga.macaronikid.com/events",d:"family & kids events calendar"},{n:"Visit Savannah Events",u:"https://www.visitsavannah.com/events",d:"official CVB events calendar"}],
+  "Charleston":[{n:"Charleston City Paper",u:"https://charlestoncitypaper.com/calendar/",d:"alt-weekly Lowcountry events"},{n:"Charleston Moms Events",u:"https://charlestonmoms.com/events/",d:"family & kids events calendar"},{n:"Explore Charleston Events",u:"https://www.charlestoncvb.com/events/",d:"official CVB events calendar"}],
+  "St. Augustine":[{n:"Visit St. Augustine Events",u:"https://www.visitstaugustine.com/events/all",d:"local visitor-guide calendar"},{n:"Fun 4 Auggie Kids",u:"https://fun4auggiekids.com/calendar/",d:"family & kids calendar"},{n:"Macaroni KID St. Augustine",u:"https://staugustine.macaronikid.com/events",d:"family & kids events calendar"},{n:"Florida's Historic Coast",u:"https://www.floridashistoriccoast.com/events/",d:"official CVB events & festivals"}],
+  "Orlando":[{n:"Time Out Orlando",u:"https://www.timeout.com/orlando/things-to-do",d:"city magazine best things-to-do"},{n:"Visit Orlando Events",u:"https://www.visitorlando.com/events/",d:"official CVB events calendar"},{n:"Orlando Informer Events",u:"https://orlandoinformer.com/universal/events/",d:"theme-park events guide"},{n:"Macaroni KID Orlando",u:"https://seorlando.macaronikid.com/events/calendar",d:"family & kids events"}],
+  "Tampa / St. Pete":[{n:"That's So Tampa Events",u:"https://thatssotampa.com/events/",d:"local things-to-do calendar"},{n:"Visit Tampa Bay Events",u:"https://www.visittampabay.com/events/",d:"official CVB events calendar"},{n:"Visit St. Pete-Clearwater",u:"https://www.visitstpeteclearwater.com/events",d:"official CVB events calendar"},{n:"Creative Loafing Tampa",u:"https://community.cltampa.com/tampa/EventSearch",d:"alt-weekly events calendar"}],
+  "Nature Coast (Crystal River)":[{n:"Discover Crystal River",u:"https://www.discovercrystalriverfl.com/events/",d:"official Citrus County calendar"},{n:"Fun 4 Nature Coast Kids",u:"https://fun4naturecoastkids.com/calendar",d:"family & kids events calendar"},{n:"Citrus County Chronicle",u:"https://www.citruscountychronicle.com/events/",d:"local newspaper events calendar"}]
+};
+// Baked event research for a specific trip weekend, keyed by city. Perishable by design:
+// each set carries an `expires` date and auto-hides its listings once that date passes
+// (the evergreen EVENTS links above always remain). Refresh via a stop's "Copy events request".
+let TRIP_EVENTS={
+  "NC Triangle (Raleigh–Durham)":{window:"Aug 1–8, 2026",foundNice:"Jul 4, 2026",expires:"2026-08-08",items:[
+    {d:"2026-08-03",n:"“Watermelon Day” @ Museum of Life & Science",m:"Durham · Mon Aug 3 · w/ admission · animals get watermelon + Hideaway Woods water play — top pick"},
+    {d:"2026-08-04",n:"Movie night @ Pullen Park",m:"Raleigh · Tue Aug 4 · 7p · free · carousel, train & pedal boats on site (a Triangle atlas pick)"},
+    {d:"2026-08-07",n:"First Friday Market & Movie (Zootopia 2) @ Moore Square",m:"Raleigh · Fri Aug 7 · ~7:15p · free · on-site splash pad + outdoor movie"},
+    {d:"2026-08-02",n:"Durham Bulls vs. Gwinnett @ DBAP",m:"Durham · Sat Aug 1 6:45p (fireworks) & Sun Aug 2 5:05p · ~$11–20"},
+    {d:"2026-08-07",n:"$1–$3 kids matinees all week",m:"Regal Summer Movie Express $1 (Mon) · Cary Paragon Minecraft $2 · Chapel Hill Lumina $3 — heat/rain breaks"}
+  ]},
+  "Charlotte":{window:"Aug 6–8, 2026 (stopover)",foundNice:"Jul 4, 2026",expires:"2026-08-08",items:[
+    {d:"2026-08-08",n:"Charlotte Knights vs. Durham Bulls @ Truist Field",m:"Uptown · Fri Aug 7 ~7:04p / Sat Aug 8 6:05p (Sat = fireworks + kids run bases) · from ~$12 · verify promo"},
+    {d:"2026-08-06",n:"Thu Aug 6 combo (if there Thursday)",m:"free River Jam concert @ Whitewater Center + free “Wizard of Oz” outdoor movie @ Camp North End"},
+    {d:"2026-08-08",n:"First Ward Park sprayground",m:"Uptown, walkable to Truist Field · free splash play before the game"},
+    {d:"2026-08-08",n:"Charlotte Regional Farmers Market",m:"1801 Yorkmont Rd · Sat Aug 8 8a–5p · free · easy stop before the drive home"}
+  ]}
+};
+// Pricing is refreshed on demand, city by city. When you ask me to update a city,
+// I research current admission + a typical hotel rate and drop entries here, plus
+// the date in PRICE_DATES. Everything else in the page stays untouched.
+let PRICE_DATES={
+  "Atlanta":"Jul 2026","Louisville":"Jul 2026","Cincinnati":"Jul 2026","Columbus":"Jul 2026",
+  "Indianapolis":"Jul 2026","St. Louis":"Jul 2026","Savannah":"Jul 2026","Charleston":"Jul 2026",
+  "St. Augustine":"Jul 2026","Orlando":"Jul 2026","Tampa / St. Pete":"Jul 2026",
+  "Nature Coast (Crystal River)":"Jul 2026",
+  "Chattanooga":"Jul 2026","Nashville":"Jul 2026","Huntsville":"Jul 2026","Knoxville":"Jul 2026",
+  "Washington DC":"Jul 2026","Williamsburg":"Jul 2026","Pittsburgh":"Jul 2026","Philadelphia":"Jul 2026",
+  "Charlotte":"Jul 2026","Gatlinburg / Pigeon Forge":"Jul 2026","NC Triangle (Raleigh–Durham)":"Jul 2026"
+};
+let HOTELS={
+  "Atlanta":165,"Louisville":150,"Cincinnati":150,"Columbus":160,"Indianapolis":150,"St. Louis":150,
+  "Savannah":180,"Charleston":220,"St. Augustine":200,"Orlando":150,"Tampa / St. Pete":160,
+  "Nature Coast (Crystal River)":130,
+  "Chattanooga":165,"Nashville":250,"Huntsville":145,"Knoxville":185,
+  "Washington DC":240,"Williamsburg":210,"Pittsburgh":185,"Philadelphia":260,
+  "Charlotte":175,"Gatlinburg / Pigeon Forge":195,"NC Triangle (Raleigh–Durham)":155
+};
+let PRICES={
+  // Atlanta
+  "Georgia Aquarium":"From $54.99/person dated","Zoo Atlanta":"From $37/person dated",
+  "Fernbank Museum":"$25.95 adult / $23.95 child 3-12","Stone Mountain Park":"$20/vehicle parking",
+  "World of Coca-Cola":"$26 adult / $22 child 3-12","Children's Museum of Atlanta":"~$18-22/person",
+  "LEGO Discovery Center":"From $24.99/person","Six Flags White Water":"From $29/person dated",
+  "BeltLine: Ponce City + Krog St Markets":"Free","Center for Puppetry Arts":"$26 adult / $20 child",
+  "Chattahoochee Nature Center":"$20 adult / $14 child 3-12","Delta Flight Museum":"Free",
+  "Museum of Illusions":"$29 adult / $24 child 5-12","East Palisades Bamboo Forest":"Free",
+  "Doll's Head Trail":"Free","Cascade Springs Nature Preserve":"Free",
+  "Margaritaville at Lanier — Fins Up":"From $44.99 (gate $59.99 age 8+)",
+  "Great Wolf Lodge (LaGrange)":"Day pass from $40; room from $94",
+  // Louisville
+  "Louisville Mega Cavern":"$19.99/person tram tour","Kentucky Science Center":"$24/person (movie extra)",
+  "Louisville Zoo & HerpAquarium":"$18 adult / $13 child (3-11) +$7 park",
+  "Kentucky Kingdom & Hurricane Bay":"~$40/person (dynamic)","Louisville Slugger Museum":"$16 adult / $9 youth (6-12)",
+  "Waterfront Park + Big Four Bridge":"Free","Falls of the Ohio State Park":"$9 adult / $7 child +$2 parking",
+  "Bernheim Forest (Forest Giants)":"Free wkday / $15/vehicle wkend","Louisville Nature Center":"Free",
+  "Parklands of Floyds Fork":"Free","NuLu District":"Free","Frazier History Museum":"$16 adult / $10 child (5-17)",
+  // Cincinnati
+  "Cincinnati Zoo":"$17.50-26 adult / $11.50-20 child (3-12)","Newport Aquarium":"~$32 adult / ~$25 child (2-12)",
+  "Cincinnati Museum Center":"$22.50 adult / $15.50 child (3-12)","Great Wolf Lodge (Mason)":"Day pass from $40",
+  "Smale Riverfront Park":"Free","Findlay Market & OTR":"Free","Newport on the Levee / Box Park":"Free",
+  "Krohn Conservatory":"$7 adult / $5 youth; $10/$7 shows","American Sign Museum":"$20 adult / free under 13",
+  "Jungle Jim's International Market":"Free","Loveland Castle":"$5 adult / $3 child (12 & under)",
+  "Cincinnati Nature Center — Rowe Woods":"$10 adult / $6 child","Trammel Fossil Park":"Free",
+  "Pyramid Hill Sculpture Park":"$10 adult / $5 child (6-12)",
+  // Columbus
+  "COSI":"$20 adult / $15 child (2-12)","Columbus Zoo and Aquarium":"$33 adult / $27 child (3-9) online",
+  "Zoombezi Bay":"$35 adult / $32 child (3-9) online","The Wilds":"$45/person open-air safari",
+  "Franklin Park Conservatory":"$14 adult / $7 child (3-17)","North Market":"Free",
+  "German Village & The Book Loft":"Free","Topiary Park":"Free","Otherworld":"$30 adult / $24 child (3-12)",
+  "Scioto Mile / Riverfront":"Free","Slate Run Living Historical Farm":"Free","Billy Ireland Cartoon Library":"Free",
+  // Indianapolis
+  "Children's Museum of Indianapolis":"$24+ adult / $19+ child 2-17 (dynamic)",
+  "Indianapolis Zoo":"$15-34 adult / $15-32 child 2-12 (dynamic)","Newfields / IMA":"$20 adult / $13 child 6-17",
+  "Conner Prairie":"$24 adult / $18 youth (2-12) online","Indy Motor Speedway Museum":"$25 adult / $18 kids 6-16",
+  "Eagle Creek Park":"$6/vehicle IN, $8 non-resident","Canal Walk & White River SP":"Free","Mass Ave":"Free",
+  "Garfield Park Conservatory":"$4/person, $14 family","Holliday Park & Ruins":"Free",
+  "Fort Harrison State Park":"$7/vehicle IN, $15 out-of-state","Indy Island Aquatic Center":"$6 adult / $3 child",
+  "Big Splash Adventure":"$29.95 over 46in / $24.95 under","City Market Catacombs":"Closed 2026-27 (construction)",
+  "Teeny Statue of Liberty Museum":"50¢ (free w/ donation)",
+  // St. Louis
+  "City Museum":"$22 general (2 & under free)","Saint Louis Zoo":"Free (parking $15)",
+  "The Magic House":"$14/person (under 1 free)","Gateway Arch":"$19-23 adult / $14-18 child (3-15)",
+  "Saint Louis Science Center":"Free (add-ons extra)","Missouri Botanical — Children's Garden":"$5 child (3-12), 13+ free",
+  "St. Louis Aquarium at Union Station":"$25 adult / $18 child (3-12)","Grant's Farm":"Free ($18/vehicle parking)",
+  "Forest Park":"Free","Ted Drewes Frozen Custard":"~$5-8/treat","Turtle Playground":"Free",
+  "Sophia Sachs Butterfly House":"$6 adult / $4 child (3-12)","Purina Farms":"Free","World Bird Sanctuary":"$5/person",
+  "Suson Park":"Free","Cahokia Mounds":"Free (donation)","The Delmar Loop":"Free",
+  "Raging Rivers WaterPark":"$30 adult / $26 child (48\" & under)","City Foundry STL":"Free",
+  // Savannah
+  "Tybee Island Marine Science Center":"$15 adult / $12 child (5-12)","UGA Marine Ed Center & Aquarium":"$6 adult / $3 child (3-12)",
+  "Oatland Island Wildlife Center":"$7 adult / $5 child (4-17)","Savannah Children's Museum":"$12/person, under 18mo free",
+  "Tybee Island Light Station":"$12/person, 4 & under free","Dolphin Adventure Boat Tour":"$34.95 adult / $22.95 child (≤12)",
+  "Tybee Island Beach & Pier":"Free; parking $4/hr or $25/day","Forsyth Park":"Free",
+  "Wormsloe Historic Site":"$12 adult / $5.75 child (6-17)","Pin Point Heritage Museum":"$9 adult / $5 child (2-12)",
+  "River Street":"Free","Leopold's Ice Cream":"~$6/scoop","Savannah Bananas":"From $35/ticket (if available)",
+  "Crab Shack at Chimney Creek":"Entrees ~$15-30",
+  // Charleston
+  "South Carolina Aquarium":"$30 adult / $23 child (3-12)","Patriots Point / USS Yorktown":"$24 adult / $16 child (6-11)",
+  "Isle of Palms":"Free; parking $15-25/vehicle","Folly Beach":"Free; parking $2.50/hr",
+  "Sullivan's Island + Fort Moultrie":"Beach free; Fort $10 (16+), kids free","Splash Zone Waterpark":"$16 adult / $14 child +$2 entry",
+  "Whirlin' Waters":"$25.99 / $20.99 under 48\"","Children's Museum of the Lowcountry":"$13 online / $15 door",
+  "Charles Towne Landing":"$12 adult / $7 youth (6-15)","Center for Birds of Prey":"$18 adult / $12 child (6-18)",
+  "Angel Oak Tree":"Free","Shem Creek Park & Boardwalk":"Free","Cypress Gardens":"$10 adult / $5 child (6-17)",
+  "Joe Riley Waterfront Park":"Free",
+  // St. Augustine
+  "St. Augustine Alligator Farm":"$36 adult / $21 child (3-11)","Castillo de San Marcos":"$15 adult / free under 16",
+  "Pirate & Treasure Museum":"$19 adult / $10 child (5-12)","Colonial Quarter":"$16 adult / $10 child (5-12)",
+  "Fountain of Youth Park":"$23 adult / $10 child (6-12)","St. Augustine Lighthouse":"$15 adult / $13 child (4-12)",
+  "Anastasia State Park":"$8/vehicle","St. Augustine Beach":"Free; ~$10/day parking",
+  "Marineland Dolphin Adventure":"$20/person; under 5 free","Whetstone Chocolates Tour":"~$11/person",
+  "Fossil Shark Tooth Hunting":"check site","GTM Estuary Kayak Tours":"$45 adult / $35 child (6-12)",
+  "The Old Jail":"$17 adult / $9 child (4-12)",
+  // Orlando
+  "Universal's Volcano Bay":"~$80-110/person (dynamic)","Aquatica":"~$47-75/person (dynamic)",
+  "Discovery Cove":"~$200-280/person day resort","LEGOLAND Florida + Water Park":"~$70-137/person (dynamic)",
+  "Peppa Pig Theme Park":"$29+ kids online, $64 gate","Gatorland":"$32 adult / $22 child (3-12)",
+  "Blue Spring State Park":"$6/vehicle","Wekiwa Springs State Park":"$6/vehicle (reserv. req'd)",
+  // Tampa / St. Pete
+  "Busch Gardens Tampa Bay":"~$170 gate, ~$78+ online","Mote SEA":"~$41 adult (plan-ahead varies)",
+  "The Florida Aquarium":"$36.50 adult / $31.50 child (3-11)","Clearwater Marine Aquarium":"$41.95 adult / $32.95 child (3-11)",
+  "Glazer Children's Museum":"$24.95/person, under 1 free","Great Explorations":"$12 adult / $15 child (1-17)",
+  "Sunken Gardens":"$18 adult / $8 child (2-12)",
+  // Nature Coast
+  "Swim with Manatees — Three Sisters Springs":"~$65-80/person tour","Weeki Wachee Springs":"$13 adult / $8 child (6-12)",
+  "Giraffe Ranch":"~$29 adult / $24 child (2-11)","Ellie Schiller Homosassa Springs":"$13 adult / $5 child (6-12)",
+  "Rainbow Springs State Park":"$2/person","Silver Springs State Park":"$2/person",
+  "Devil's Den Prehistoric Spring":"$15 wkday / $20 wknd/person",
+  // Chattanooga
+  "Tennessee Aquarium — River Journey":"$39.95 adult / $29.95 child 5-17 (both bldgs)",
+  "Tennessee Aquarium — Ocean Journey":"$39.95 adult / $29.95 child 5-17 (both bldgs)",
+  "Creative Discovery Museum":"$19.95/person, under 2 free","Rock City Gardens":"$43-45 adult / $33-35 child 3-12",
+  "Ruby Falls":"$28.95 adult / $18.95 child 4-12","Lookout Mountain Incline Railway":"$17.60 adult / $8 child 3-12 round trip",
+  "Coolidge Park":"Free","Chattanooga Zoo":"$15.95 adult / $12.95 child 3-12",
+  "TN Valley Railroad Museum":"From $25 adult / $16 child 2-12","High Point Climbing":"$24 adult / $22 child 10-under (+gear)",
+  "Lake Winnie & SOAKya":"From $33.95/person combo","Reflection Riding":"Free (donations welcome)",
+  "Raccoon Mountain Caverns":"$28.99 adult / $18.99 child 4-12","Bluff View Art District":"Free",
+  "Walnut Street Bridge":"Free","Chattanooga Choo Choo":"Free (campus/grounds)",
+  // Nashville
+  "Nashville Zoo at Grassmere":"$16-26 adult / -$4 youth 2-12; under 2 free","Adventure Science Center":"$22 adult / $18 child 2-12; under 2 free",
+  "SoundWaves at Opryland":"From $62 non-peak/$85 peak (resort guests)","Cheekwood Estate & Gardens":"$20-26 adult / $13-19 youth 3-17",
+  "The Parthenon":"$10 adult / $8 child 4-17 (closed thru mid-Jul)","Nashville Shores + Treetop":"Waterpark from ~$52/person; Treetop extra",
+  "Wave Country":"$12 adult / $10 child 3-12; under 2 free","Lane Motor Museum":"$15 adult / $3 youth 6-17; under 5 free",
+  "Bicentennial Mall + Farmers' Market":"Free","Marathon Village":"Free",
+  "Adventureworks Ziplines":"$65.90 adult / $49.90 youth 8-17","Fort Nashborough":"Free",
+  "Two Rivers & Shelby splash pads":"Free",
+  // Huntsville
+  "U.S. Space & Rocket Center / Space Camp":"$30 adult / $20 child","Cook Museum of Natural Science":"$20 adult / $15 child 3-14",
+  "Huntsville Botanical Garden":"$20 adult / $13 child 3-15","EarlyWorks Children's Museum":"$12 age 4+ / $7 ages 1-3",
+  "Point Mallard Water Park":"$28/person (+$9 online fee)","Lowe Mill ARTS":"Free",
+  "Monte Sano State Park":"$5 adult / $2 child 4-11","Burritt on the Mountain":"$12 adult / $8 child & student",
+  "Campus No. 805":"Free (venue)","INTUITIVE Planetarium":"Incl. with $30 gen. admission",
+  // Knoxville
+  "Zoo Knoxville":"$26.95 adult / $21.95 child 3-12 & 65+ (+$2 gate)","Ijams Nature Center & Meads Quarry":"Free (parking $5/day)",
+  "Muse Knoxville":"$12/person (under 1 free)","World's Fair Park & Sunsphere":"Park free; Sunsphere $10 adult / $5 child 12&under",
+  "Market Square":"Free","Urban Wilderness":"Free","Fort Dickerson Quarry":"Free",
+  "Knoxville Botanical Garden":"Free (donation)","Three Rivers Rambler":"$60 adult / $35 child 5-14",
+  "Soaky Mountain Waterpark":"From $54.99 (over 42in) / $43.99 under 42in online","Ripley's Aquarium of the Smokies":"~$50 adult / $32 child 6-11 (under 5 free)",
+  "Great Smoky Mountains NP":"Free entry; $5/vehicle parking tag",
+  // Washington DC
+  "Nat'l Air & Space Museum":"Free (timed entry pass)","Nat'l Museum of Natural History":"Free",
+  "Smithsonian's National Zoo":"Free (timed pass; parking extra)","Planet Word Museum":"Free ($15 suggested donation)",
+  "National Postal Museum":"Free","U.S. Botanic Garden":"Free","Rock Creek Park Nature Center":"Free",
+  "Gravelly Point Park":"Free","Kayak to Roosevelt Island":"$16/hr single, $22/hr tandem",
+  "Tudor Place (Georgetown)":"$10 adult / $8 senior","Kenilworth Aquatic Gardens":"Free",
+  "National Aquarium (Baltimore)":"$49.95 adult / $39.95 youth 5-20","Great Waves Waterpark":"$18.50-20.50 adult / $15-17 child (non-res)",
+  "Volcano Island Waterpark":"$12-16 adult / $9.50-12 child under 48\"",
+  // Williamsburg
+  "Colonial Williamsburg":"$37.50 adult / $10 youth 6-12","Busch Gardens Williamsburg":"From $59.99/person (promo)",
+  "Water Country USA":"From $54.99/person","Great Wolf Lodge (Williamsburg)":"Day pass from $40; rooms ~$300+/night",
+  "Jamestown Settlement":"$30 adult / $15 child 6-12","Amer. Revolution Museum at Yorktown":"$18 adult / $9 child 6-12",
+  "Virginia Living Museum":"$22.95 adult / kids under 2 free","Yorktown Beach & Riverwalk":"Free",
+  "York River State Park":"$5/vehicle weekday (more weekends)","Waller Mill Park":"$2/vehicle",
+  "Freedom Park & Botanical Garden":"Free","William & Mary campus":"Free",
+  "Merchants Square dining":"Free to stroll; varies by restaurant","Jamestown-Scotland Ferry":"Free",
+  "Sweethaven Lavender Farm":"$5 Tue-Fri / $7 Sat",
+  // Pittsburgh
+  "Carnegie / Kamin Science Center":"$24.95 adult / $16.95 child 3-12","Children's Museum of Pittsburgh":"$21 adult / $19 child 2-18",
+  "Carnegie Museum of Natural History":"$25 adult / $13 child 3-18","National Aviary":"$20.95 adult / $17.95 child 2-12",
+  "Pittsburgh Zoo & Aquarium":"$30 adult / $25 child 2-13 (online)","Duquesne Incline":"$5 adult / $2.50 child 6-11 round trip",
+  "Phipps Conservatory":"$21.95 adult / $13.95 child 2-18","Randyland":"Free",
+  "Heinz History Center":"$20 adult / free kids 17 & under","Kennywood":"From $39.99/person online",
+  "Idlewild & SoakZone":"From $39.99/person online","Sandcastle Waterpark":"From $29.99 (reg $59.99)",
+  "Moonshot Museum":"$10 adult / $5 child 3-17",
+  // Philadelphia
+  "The Franklin Institute":"$29 adult / $23 child 3-12","Please Touch Museum":"$24/person, under 1 free",
+  "Philadelphia Zoo":"From ~$28/person, varies by day","Adventure Aquarium (Camden)":"From $27.99, dynamic (age 2+)",
+  "Liberty Bell & Independence Hall":"Free","Reading Terminal Market":"Free entry",
+  "Sesame Place":"From $110.99 online (age 2+)","Franklin Square":"Free; mini golf $15 adult/$12 child",
+  "Spruce Street Harbor Park":"Free","Elmwood Park Zoo":"$15.95/person, under 3 free",
+  "Morris Arboretum":"$20 adult / $10 child 3-17","Penn Museum":"$23 adult / $14 youth 6-17",
+  "Eastern State Penitentiary":"$21 adult / $17 youth 7-17 online",
+  // Charlotte
+  "Discovery Place Science":"$23.96 adult / $18.97 child 2-13 online","U.S. National Whitewater Center":"Free trails; day pass $79 ($69 age 9-under); $13 parking",
+  "Carowinds":"Gate $80; online from ~$35; parking extra","SEA LIFE Charlotte-Concord Aquarium":"From $14 adult / $12 child 2-12 online",
+  "Carolina Raptor Center":"$16 adult / $12 child 3-13; under 3 free","Daniel Stowe Botanical Garden":"$16.95 adult / $9.95 child 2-12",
+  "ImaginOn":"Free","Discovery Place Kids-Huntersville":"$14/person (online $11); under 1 free",
+  "Reed Gold Mine":"Free; gold panning $5/person","Schiele Museum of Natural History & Planetarium":"$7 adult / $6 youth 4-18; planetarium +$5",
+  "Charlotte Museum of Nature":"check site (reopening late summer 2026)","Charlotte Museum of History":"$10 adult / $7 child 6-17; under 6 free",
+  "Ray's Splash Planet":"~$15/day non-resident adult; less for kids","Latta Nature Preserve & Quest Nature Center":"Free (Quest center free)",
+  "Freedom Park & Little Sugar Creek Greenway":"Free",
+  // Gatlinburg / Pigeon Forge
+  "Dollywood":"$94.99+ adult, less kids 4-9 (dynamic)","Dollywood's Splash Country":"From ~$74.99 (dynamic); 3 & under free",
+  "Anakeesta":"$39.99 adult / $27.99 kids 4-11","Gatlinburg SkyLift Park & SkyBridge":"$34.95 adult / $15.95 kids 6-11; under 6 free",
+  "WonderWorks":"From ~$38.69/person; 0-3 free","Ober Mountain":"Fun Pass from $39 (advance); tram varies",
+  "Cades Cove Loop":"Free; $5/day parking tag","Clingmans Dome (Kuwohi)":"Free; $5/day parking tag",
+  "Sugarlands Visitor Center & Salamander Creeks":"Free (Junior Ranger booklet ~$2.50)","The Island in Pigeon Forge":"Free entry; Wheel $16.99 adult / $11.99 kids",
+  "Smoky Mountain Alpine Coaster":"~$18 adult; kids' discounts","Titanic Museum Attraction":"$34.99 adult / $14.99 kids 5-12",
+  "Ripley's Believe It or Not! Odditorium":"$29.99 adult / $16.99 kids 6-11","Dollywood's DreamMore Resort":"~$400+/night summer; TimeSaver perks",
+  // NC Triangle (Raleigh–Durham)
+  "NC Museum of Natural Sciences":"Free","Museum of Life and Science":"$23 adult / $18 child 3-12",
+  "Duke Lemur Center":"$17 adult / $15 child; reserve ahead","Marbles Kids Museum":"From $9/person; under 1 free",
+  "Morehead Planetarium & Science Center":"~$15-17 incl. show; $2 off summer wkdays","NC Museum of History":"Free",
+  "Sarah P. Duke Gardens":"Free (parking ~$2/hr)","NC Museum of Art Park":"Free (park & collection)",
+  "Pullen Park":"Free entry; rides $2 each","NC Botanical Garden":"Free","JC Raulston Arboretum":"Free",
+  "Durham Bulls Baseball":"From $4; ~$12-16 typical","Frankie's Fun Park":"Attractions from $11 each",
+  "William B. Umstead State Park":"Free","American Tobacco Trail":"Free","Jordan Lake State Recreation Area":"~$7/vehicle entry"
+};
+
+// [name, city, tags, type, age, why]
+let A=[
+["Georgia Aquarium","Atlanta","an,wa,sc","SIG","both","Top-5 world aquarium — whale sharks, belugas, otters; summer Glow Nights."],
+["Zoo Atlanta","Atlanta","an,na","SIG","both","1,000+ animals incl. a huge gorilla troop; walkable, any season."],
+["Fernbank Museum","Atlanta","sc,na,hi","SIG","both","World's largest dinosaur + hands-on NatureQuest + 2 mi of forest trails."],
+["Stone Mountain Park","Atlanta","na,hi,tp","SIG","both","Skyride, Dinosaur Explore, railroad; free Pre-K pass summer '26."],
+["World of Coca-Cola","Atlanta","fo,sc","SOL","both","Scent Discovery + mix-your-own tasting room; pairs with the aquarium."],
+["Children's Museum of Atlanta","Atlanta","sc","SOL","little","3-story climber + water play; best weighted to the Kindergartner."],
+["LEGO Discovery Center","Atlanta","sc,tp","SOL","both","Indoor LEGO rides & build zones; great rainy-day option."],
+["Six Flags White Water","Atlanta","wa","SOL","both","20+ slides; the go-to outdoor water park for a hot day."],
+["BeltLine: Ponce City + Krog St Markets","Atlanta","fo,wk","SOL","both","Two food halls on a flat, stroller-friendly trail — ramen to Jeni's."],
+["Center for Puppetry Arts","Atlanta","hi,sc","GEM","both","Largest US puppetry org + a Jim Henson wing & build-a-puppet workshops."],
+["Chattahoochee Nature Center","Atlanta","na,an","GEM","both","River boardwalk, native wildlife, butterfly & native-plant gardens."],
+["Delta Flight Museum","Atlanta","sc,hi","GEM","both","Sit in cockpits and walk on the wing of a 747; strong for a curious 9-yr-old."],
+["Museum of Illusions","Atlanta","sc","GEM","both","Illusion rooms & brain teasers — quick, giggly, photogenic filler."],
+["East Palisades Bamboo Forest","Atlanta","na","GEM","older","A hidden riverside bamboo grove; ~4 mi loop suits the older girl."],
+["Doll's Head Trail","Atlanta","na,hi","OFF","older","Free folk-art trail of salvaged doll heads through an old brick quarry."],
+["Cascade Springs Nature Preserve","Atlanta","na,hi","OFF","both","Waterfall trails + preserved Civil War trenches; a quiet SW-Atlanta pocket."],
+["Margaritaville at Lanier — Fins Up","Atlanta","wa,na","SOL","both","Lakeside water park w/ a water coaster + beach; a resort stay ~45 min N."],
+["Great Wolf Lodge (LaGrange)","Atlanta","wa","SOL","both","84° indoor water park; all-weather overnight toward the Florida route."],
+
+["Tennessee Aquarium — River Journey","Chattanooga","an,na,sc","SIG","both","Freshwater building: otters, turtles, a walk-through forest."],
+["Tennessee Aquarium — Ocean Journey","Chattanooga","an,wa,sc","SIG","both","Second building — sharks overhead + penguins. Buy the combo, do both."],
+["Creative Discovery Museum","Chattanooga","sc","SIG","both","Two-story water-play zone + simulated fossil dig; splits both ages."],
+["Rock City Gardens","Chattanooga","na,hi","SIG","both","Swinging bridge, gnome-filled Fairyland Caverns, See-7-States."],
+["Ruby Falls","Chattanooga","na","SIG","both","145-ft underground waterfall — tallest public underground falls in the US."],
+["Lookout Mountain Incline Railway","Chattanooga","hi,na","SOL","both","One of the world's steepest passenger railways."],
+["Coolidge Park","Chattanooga","wa,na,wk","SOL","both","Free splash fountains + a restored 100-year-old carousel."],
+["Chattanooga Zoo","Chattanooga","an","SOL","both","Small, walkable zoo you can finish in a couple hours."],
+["TN Valley Railroad Museum","Chattanooga","hi,na","SOL","older","Ride restored vintage trains through the Missionary Ridge tunnel."],
+["High Point Climbing","Chattanooga","sc","SOL","both","Indoor climbing with a Kids Zone; a great energy-burner."],
+["Lake Winnie & SOAKya","Chattanooga","tp,wa","SOL","both","Classic amusement park + attached water park (summer)."],
+["Reflection Riding","Chattanooga","na,an","GEM","both","317-acre preserve with red wolves, raptors & 15 mi of trails."],
+["Raccoon Mountain Caverns","Chattanooga","na","GEM","both","58° year-round cave tours + playground & gem panning."],
+["Bluff View Art District","Chattanooga","fo,wk,na","GEM","both","Riverside galleries, sculpture garden & Clumpies ice cream."],
+["Walnut Street Bridge","Chattanooga","wk,na","SOL","both","One of the world's longest pedestrian bridges to Coolidge Park."],
+["Chattanooga Choo Choo","Chattanooga","fo,hi,wk","OFF","both","Historic rail station turned dining & lodging hub."],
+
+["Nashville Zoo at Grassmere","Nashville","an,na","SIG","both","Kangaroo walk-through + one of the largest wooden playgrounds in the US."],
+["Adventure Science Center","Nashville","sc","SIG","both","Hands-on physics/space/body exhibits + a planetarium."],
+["SoundWaves at Opryland","Nashville","wa","SIG","both","Upscale 4-acre indoor/outdoor water park (needs a resort package)."],
+["Cheekwood Estate & Gardens","Nashville","na,hi","SIG","both","Storybook TRAINS! trail & children's garden + sculpture trails."],
+["The Parthenon","Nashville","hi","SOL","older","Full-scale replica w/ 42-ft gilded Athena. <span class='warn'>Closed thru mid-Jul '26.</span>"],
+["Nashville Shores + Treetop","Nashville","wa,na","SOL","both","Lakeside water park + an aerial ropes course for the older girl."],
+["Wave Country","Nashville","wa","SOL","both","City wave pool, flumes & kiddie slide; cheap (summer)."],
+["Lane Motor Museum","Nashville","sc,hi","GEM","both","World's weirdest cars + summer Fun Days with free vehicle rides."],
+["Bicentennial Mall + Farmers' Market","Nashville","hi,fo,wk","GEM","both","Free 19-acre park beside a food hall with 20+ international eateries."],
+["Marathon Village","Nashville","hi,fo,wk","OFF","both","Restored 1900s auto plant turned artsy village with shops & food."],
+["Adventureworks Ziplines","Nashville","na","OFF","older","Old-growth-forest zipline tours by the Harpeth River."],
+["Fort Nashborough","Nashville","hi,wk","GEM","both","Free reconstructed 1780 frontier fort on the Cumberland."],
+["Two Rivers & Shelby splash pads","Nashville","wa,na","GEM","little","Free seasonal splash pads locals use to wear out young kids."],
+
+["U.S. Space & Rocket Center / Space Camp","Huntsville","sc,hi","SIG","both","Real Apollo/Saturn V rockets + simulators; a Space Camp day for the older girl."],
+["Cook Museum of Natural Science","Huntsville","sc,an,na","SIG","both","Ultra-modern hands-on: live saltwater tanks, jellyfish, gators + splash play. (Decatur, 25 min)"],
+["Huntsville Botanical Garden","Huntsville","na,an","SOL","both","The country's largest open-air butterfly house + a miniature train village."],
+["EarlyWorks Children's Museum","Huntsville","sc,hi","SOL","little","Talking tree, kid-sized cafe, build-and-climb zones; ideal for K."],
+["Point Mallard Water Park","Huntsville","wa","SOL","both","One of America's first wave pools + slides & sandy beach. (Decatur, summer)"],
+["Lowe Mill ARTS","Huntsville","wk,fo","GEM","both","Largest US privately-owned arts center — 200+ studios + quirky food."],
+["Monte Sano State Park","Huntsville","na","GEM","both","Mountaintop trails, big playground, Japanese garden + planetarium."],
+["Burritt on the Mountain","Huntsville","hi,an,na","GEM","both","Living-history farm with animals & sweeping ridge-top views."],
+["Campus No. 805","Huntsville","fo,wk","OFF","older","Old high school reborn as a food/arcade/brewery complex."],
+["INTUITIVE Planetarium","Huntsville","sc","SOL","both","Full-dome astronomy shows; an easy AC add-on to your Rocket Center day."],
+
+["Zoo Knoxville","Knoxville","an,wa,na","SIG","both","Gorillas, elephants & giraffes, animatronic dinos + a safari splash pad."],
+["Ijams Nature Center & Meads Quarry","Knoxville","na,wa,an,wk","SIG","both","Nature playscape, live animals + kayak/paddleboard on the quarry lake."],
+["Muse Knoxville","Knoxville","sc","SOL","little","Hands-on children's museum with a planetarium; ideal for the Kindergartner."],
+["World's Fair Park & Sunsphere","Knoxville","wa,hi,wk","SIG","both","Free park with the city's biggest splash pad + a 360° Sunsphere deck."],
+["Market Square","Knoxville","fo,wk,wa","SOL","both","Historic pedestrian square: restaurants, splash fountains & live music."],
+["Urban Wilderness","Knoxville","na,wk","GEM","both","1,500 acres & 60+ mi of trails with adventure playgrounds, inside the city."],
+["Fort Dickerson Quarry","Knoxville","wa,na","OFF","both","A stunning turquoise swimming-hole quarry minutes from downtown."],
+["Knoxville Botanical Garden","Knoxville","na,wk","GEM","little","Free 44-acre garden with a cave-like Bamboo Forest & Secret Garden."],
+["Three Rivers Rambler","Knoxville","hi,na","SOL","both","~90-min heritage train ride along the Tennessee River."],
+["Soaky Mountain Waterpark","Knoxville","wa,tp","SIG","both","50-acre park, 20+ slides + wave attractions. (Sevierville, ~45 min)"],
+["Ripley's Aquarium of the Smokies","Knoxville","an,wa","SIG","both","350+ species with a shark tunnel. (Gatlinburg, ~50 min)"],
+["Great Smoky Mountains NP","Knoxville","na","SIG","both","Easy waterfall hikes, wildlife & river play just south of the city."],
+
+["Louisville Mega Cavern","Louisville","na,sc,hi","SIG","both","Underground tram for all ages + a 6-line underground zipline (age 7+)."],
+["Kentucky Science Center","Louisville","sc","SIG","both","3 floors of hands-on + a toddler zone + a 4-story digital theater."],
+["Louisville Zoo & HerpAquarium","Louisville","an,na","SIG","both","Full zoo + 100+ herp species incl. a rare 9.5-ft albino gator."],
+["Kentucky Kingdom & Hurricane Bay","Louisville","wa,tp","SIG","both","Theme + water park with a 750k-gal wave pool & 4-story playground. (summer)"],
+["Louisville Slugger Museum","Louisville","hi,sc","SOL","both","Working bat-factory tour, batting cages + a free mini-bat souvenir."],
+["Waterfront Park + Big Four Bridge","Louisville","na,wk","SOL","both","Free riverfront playgrounds & splash pad; walk the bridge into Indiana."],
+["Falls of the Ohio State Park","Louisville","na,sc,hi","GEM","both","Walk 390-million-year-old fossil beds + a Fossil Challenge scavenger hunt."],
+["Bernheim Forest (Forest Giants)","Louisville","na","GEM","both","16,000 acres with giant troll sculptures + a natural playground."],
+["Louisville Nature Center","Louisville","na,an","GEM","both","Free urban forest with a Nature Play Area, bird blind & turtle programs."],
+["Parklands of Floyds Fork","Louisville","na,wa","OFF","both","Creek-following parks with wading spots & canoeing — where locals go."],
+["NuLu District","Louisville","fo,wk","SOL","both","Walkable blocks of interesting eats + an indoor food hall."],
+["Frazier History Museum","Louisville","hi","SOL","older","Family-friendly history + the official start of the Bourbon Trail."],
+
+["Cincinnati Zoo","Cincinnati","an,na","SIG","both","Home of Fiona the hippo + a top-ranked botanical garden."],
+["Newport Aquarium","Cincinnati","an,wa,sc","SIG","both","Walk the 75-ft Shark Bridge rope walk over sharks; penguins + acrylic tunnels."],
+["Cincinnati Museum Center","Cincinnati","sc,hi","SIG","both","Three museums in an Art Deco station — top-10 children's museum + natural history."],
+["Great Wolf Lodge (Mason)","Cincinnati","wa,tp","SIG","both","50,000-sq-ft indoor water park (84°) + arcade & MagiQuest."],
+["Smale Riverfront Park","Cincinnati","na,wa,wk","SOL","both","Free riverfront fountains, adventure playground & carousel."],
+["Findlay Market & OTR","Cincinnati","fo,wk,hi","SOL","both","Ohio's oldest market via the free streetcar through historic Over-the-Rhine."],
+["Newport on the Levee / Box Park","Cincinnati","fo,wk","SOL","both","Open-air shipping-container food park next to the aquarium."],
+["Krohn Conservatory","Cincinnati","na","SOL","both","Art Deco glasshouse with 3,500 plants + a seasonal butterfly show."],
+["American Sign Museum","Cincinnati","hi,sc","GEM","both","Immersive neon 'street' + live Saturday neon-making demos."],
+["Jungle Jim's International Market","Cincinnati","fo","OFF","both","A 200,000-sq-ft 'theme park of food' — animatronics, a fire truck; free & weird."],
+["Loveland Castle","Cincinnati","hi,na","GEM","both","A real castle hand-built by one man over 50 years; kids play knights."],
+["Cincinnati Nature Center — Rowe Woods","Cincinnati","na","GEM","little","Free Nature PlayScape for unstructured play — logs, boulders, water."],
+["Trammel Fossil Park","Cincinnati","sc,na","OFF","older","Free park where kids dig real fossils and keep what they find."],
+["Pyramid Hill Sculpture Park","Cincinnati","na,hi","OFF","both","300+ acres of large-scale sculpture + a kids' scavenger hunt."],
+
+["COSI","Columbus","sc,hi","SIG","both","300k sq ft of hands-on science + a dinosaur gallery with a T. rex cast."],
+["Columbus Zoo and Aquarium","Columbus","an,wa","SIG","both","Jack Hanna's world-class zoo + a big aquarium & manatee coast."],
+["Zoombezi Bay","Columbus","wa,tp","SIG","both","Award-winning water park at the zoo — wave pool + Cyclone slides. (summer)"],
+["The Wilds","Columbus","an,na","OFF","both","A ~10,000-acre open-air safari bus among rhinos & giraffes. (~90 min, book ahead)"],
+["Franklin Park Conservatory","Columbus","na,sc","SOL","both","Glass biomes + free-flying Blooms & Butterflies + Chihuly glass."],
+["North Market","Columbus","fo,wk","SOL","both","Historic 1876 food hall with ~35 vendors; Jeni's Ice Cream originated here."],
+["German Village & The Book Loft","Columbus","wk,fo","GEM","both","Cobblestone district + a bookstore of 32 winding rooms to get lost in."],
+["Topiary Park","Columbus","na,hi","GEM","both","The world's only topiary of a painting — Seurat in living shrubs. Free."],
+["Otherworld","Columbus","sc","OFF","both","32,000 sq ft of immersive art with 40+ interactive scenes & secret passages."],
+["Scioto Mile / Riverfront","Columbus","na,wk,wa","SOL","both","145 riverfront acres with an interactive fountain kids run through."],
+["Slate Run Living Historical Farm","Columbus","hi,an,na","GEM","both","Working 1880s farm with costumed staff & hands-on chores. Free."],
+["Billy Ireland Cartoon Library","Columbus","hi","GEM","older","World's largest cartoon-art collection; a free, niche gem for the 4th-grader."],
+
+["Children's Museum of Indianapolis","Indianapolis","sc,hi,na","SIG","both","World's largest children's museum; Dinosphere with real fossil labs."],
+["Indianapolis Zoo","Indianapolis","an,wa,na","SIG","both","A rare zoo/aquarium/botanical combo with dolphins & orangutans."],
+["Newfields / IMA","Indianapolis","na,hi,wk","SIG","both","A whimsical Fairy Trail for the 5-yr-old + WinterLights in season."],
+["Conner Prairie","Indianapolis","hi,an,na","SIG","both","Top living-history museum — soar in an 1859 tethered balloon; farm animals."],
+["Indy Motor Speedway Museum","Indianapolis","sc,hi","SOL","older","Freshly reopened ($61M reno): race sims, pit-stop practice + a track lap."],
+["Eagle Creek Park","Indianapolis","na,wa,an","SOL","both","Indiana's largest park with a sandy swim beach, nature centers & eagles."],
+["Canal Walk & White River SP","Indianapolis","wk,wa,fo","SOL","both","3-mi waterside loop with pedal boats + the Colts Canal Playground."],
+["Mass Ave","Indianapolis","wk,fo","SOL","both","Walkable arts-and-dining strip; kids pour custom candles at Penn & Beech."],
+["Garfield Park Conservatory","Indianapolis","na","GEM","both","10,000-sq-ft tropical glasshouse with waterfalls + a Children's Garden."],
+["Holliday Park & Ruins","Indianapolis","na,hi","GEM","both","A reimagined playground + the surreal limestone 'Ruins' water table."],
+["Fort Harrison State Park","Indianapolis","na","GEM","both","Uncrowded former military post; a flat, stroller-friendly paved trail."],
+["Indy Island Aquatic Center","Indianapolis","wa","SOL","little","Year-round indoor water park w/ zero-depth entry; a rainy-day fallback."],
+["Big Splash Adventure","Indianapolis","wa,tp","OFF","both","Indoor waterpark resort with a lazy river + pirate play. (French Lick, ~1h)"],
+["City Market Catacombs","Indianapolis","hi","OFF","older","Saturday-only guided tours of eerie passages beneath the market."],
+["Teeny Statue of Liberty Museum","Indianapolis","hi","OFF","older","700+ Statue-of-Liberty oddities for 50¢ — the definition of off-guidebook."],
+
+["City Museum","St. Louis","sc,na,wk","SIG","both","A 600,000-sq-ft warehouse turned wild playground: caves + 30+ slides. Plan 3-4 hrs."],
+["Saint Louis Zoo","St. Louis","an,na,wk","SIG","both","Consistently a top US zoo — and FREE admission."],
+["The Magic House","St. Louis","sc","SIG","both","Beloved hands-on museum + a MADE maker-space annex for the older girl."],
+["Gateway Arch","St. Louis","hi,wk","SIG","both","Ride the tram 630 ft up + an excellent underground museum. Book ahead."],
+["Saint Louis Science Center","St. Louis","sc","SOL","both","FREE hands-on exhibits + planetarium + OMNIMAX."],
+["Missouri Botanical — Children's Garden","St. Louis","na,wa","SOL","both","Kids work locks & dams, cross a rope bridge & cool off in a limestone cave."],
+["St. Louis Aquarium at Union Station","St. Louis","an,wa","SOL","both","13,000+ animals + a wheel, carousel, mirror maze & ropes course."],
+["Grant's Farm","St. Louis","an,na","SOL","both","Free animal park — tram through pastures, goat-feeding & Clydesdales."],
+["Forest Park","St. Louis","na,hi,wk","SOL","both","Bigger than Central Park; hub for the free zoo, science center & art museum."],
+["Ted Drewes Frozen Custard","St. Louis","fo","SOL","both","Iconic Route 66 'concrete' — so thick they hand it to you upside-down."],
+["Turtle Playground","St. Louis","na,wk","GEM","little","Free giant climbable turtles by City Museum's creator — pair the two."],
+["Sophia Sachs Butterfly House","St. Louis","na,an","GEM","both","A tropical conservatory where free-flying butterflies land on you."],
+["Purina Farms","St. Louis","an,na","GEM","both","FREE hands-on farm + the Incredible Dog Show. (Apr–Oct)"],
+["World Bird Sanctuary","St. Louis","an,na","GEM","both","305+ acres, 200+ birds — meet eagles, parrots & emus up close."],
+["Suson Park","St. Louis","an,na","GEM","little","Free working animal farm + catch-and-release fishing + playground."],
+["Cahokia Mounds","St. Louis","hi,na","OFF","older","UNESCO site — largest pre-Columbian city N of Mexico; climb Monks Mound. Free."],
+["The Delmar Loop","St. Louis","fo,wk","OFF","both","Walkable strip with a Walk of Fame + Fitz's root beer bottled on-site."],
+["Raging Rivers WaterPark","St. Louis","wa,tp","OFF","both","Wave pool + tube rides via a scenic Great River Road drive. (~45 min, summer)"],
+["City Foundry STL","St. Louis","fo,wk","OFF","both","A buzzy food-hall district in a former foundry with room to roam."],
+
+["Nat'l Air & Space Museum","Washington DC","sc,hi","SIG","both","Newly renovated galleries ('26); touch a moon rock. Free, timed entry."],
+["Nat'l Museum of Natural History","Washington DC","sc,an,na","SIG","both","Dinosaur hall + a live Insect Zoo & Butterfly Pavilion. Free & hands-on."],
+["Smithsonian's National Zoo","Washington DC","an,na","SIG","both","Free (timed ticket); pandas are back + a new elephant calf."],
+["Planet Word Museum","Washington DC","sc,hi","GEM","older","World's first voice-activated museum — karaoke, talking library. Free."],
+["National Postal Museum","Washington DC","hi,sc","GEM","little","A suspended airmail plane, drivable mail truck & walk-in train car. Free."],
+["U.S. Botanic Garden","Washington DC","na,sc","SOL","both","Free living-plant museum with a Children's Garden & kid tools."],
+["Rock Creek Park Nature Center","Washington DC","na,sc,an","GEM","both","Free; live turtles & snakes + a planetarium show tuned for ages 4-10."],
+["Gravelly Point Park","Washington DC","na","OFF","both","A riverside lawn where jets roar overhead landing at Reagan — pure delight."],
+["Kayak to Roosevelt Island","Washington DC","wa,na","OFF","older","Rent kayaks and paddle the Potomac around wooded Teddy Roosevelt Island."],
+["Tudor Place (Georgetown)","Washington DC","hi,na","GEM","little","Free 5-acre historic garden; kids grab an explorer map & spot bunnies."],
+["Kenilworth Aquatic Gardens","Washington DC","na,wa","OFF","both","The only NPS site devoted to aquatic gardens; a quiet off-radar morning."],
+["National Aquarium (Baltimore)","Washington DC","wa,an","SOL","both","DC's real aquarium option — dolphins & top-tier tanks. (~45 min)"],
+["Great Waves Waterpark","Washington DC","wa","SOL","both","Wave pool + five slides + a gentle Kids Zone. (Alexandria, ~20 min)"],
+["Volcano Island Waterpark","Washington DC","wa","GEM","both","A riverside regional water park locals love. (Sterling, VA)"],
+
+["Colonial Williamsburg","Williamsburg","hi,wk,fo,an","SIG","both","Living 18th-c town, costumed trades, carriage rides + a boxwood maze; kids often free in summer."],
+["Busch Gardens Williamsburg","Williamsburg","tp,an,fo","SIG","both","Sesame Street & Land of the Dragons for the 5-yr-old + coasters; 3-5 ride free."],
+["Water Country USA","Williamsburg","wa","SIG","both","Virginia's largest water park — a play structure + gentle wave pool."],
+["Great Wolf Lodge (Williamsburg)","Williamsburg","wa","SOL","both","84° indoor water park + the interactive MagiQuest game; rain-proof."],
+["Jamestown Settlement","Williamsburg","hi,na,wk","SOL","both","Board a re-created 1607 ship and help raise the sail."],
+["Amer. Revolution Museum at Yorktown","Williamsburg","hi","SOL","older","Interactive galleries + a living-history Continental Army encampment."],
+["Virginia Living Museum","Williamsburg","an,sc,na","GEM","both","Zoo + aquarium + nature center + a Dino Dig fossil pit. (Newport News, 30 min)"],
+["Yorktown Beach & Riverwalk","Williamsburg","wa,wk,fo,hi","GEM","both","A gentle river beach + walkable waterfront with a free trolley."],
+["York River State Park","Williamsburg","na","GEM","older","Hike to Fossil Beach and hunt real fossils along the estuary."],
+["Waller Mill Park","Williamsburg","na,wa","OFF","both","A 360-acre reservoir with kayaking & pedal boats; a locals' spot."],
+["Freedom Park & Botanical Garden","Williamsburg","na","OFF","both","A free arboretum with easy trails & events like full-moon hikes."],
+["William & Mary campus","Williamsburg","wk,na,hi","OFF","both","The Sunken Garden + storybook Crim Dell Bridge make a pretty free walk."],
+["Merchants Square dining","Williamsburg","fo,wk","SOL","both","A walkable brick dining district — bistro, seafood, tacos + ice cream."],
+["Jamestown-Scotland Ferry","Williamsburg","na","OFF","both","A free James River car ferry (every ~25 min, 365 days) — an underrated maritime ride most skip."],
+["Sweethaven Lavender Farm","Williamsburg","na,fo","OFF","little","Pick-your-own lavender bouquets late May–July; a sensory, photogenic detour."],
+
+["Carnegie / Kamin Science Center","Pittsburgh","sc,wa","SIG","both","Five floors of 100+ hands-on exhibits + a real submarine kids can board."],
+["Children's Museum of Pittsburgh","Pittsburgh","sc,na","SIG","both","Voted #1 US children's museum ('26); open-ended, tinker-heavy play."],
+["Carnegie Museum of Natural History","Pittsburgh","sc,hi,na","SIG","both","Giant dinosaur skeletons + a gem & mineral hall; adjoins the art museum."],
+["National Aviary","Pittsburgh","an,na","SIG","both","The only independent US aviary — 500+ birds in walk-through rooms + shows."],
+["Pittsburgh Zoo & Aquarium","Pittsburgh","an,wa,na","SOL","both","A classic zoo-plus-aquarium day with broad animal variety."],
+["Duquesne Incline","Pittsburgh","hi,wk","SIG","both","An 1877 cable railway up Mt. Washington to the iconic city view."],
+["Phipps Conservatory","Pittsburgh","na","SOL","both","A 15-acre glasshouse with 23 gardens + a seasonal Butterfly Forest."],
+["Randyland","Pittsburgh","wk,fo","GEM","both","A free, joyfully weird outdoor folk-art courtyard on the North Side."],
+["Heinz History Center","Pittsburgh","hi","GEM","both","Home to the original Mister Rogers' set + a hands-on Kidsburgh exhibit."],
+["Kennywood","Pittsburgh","tp,wa","SOL","both","A historic 150-acre amusement park with 45+ rides across ages."],
+["Idlewild & SoakZone","Pittsburgh","tp,wa","GEM","both","Repeatedly named best kids' park in the world + the Mister Rogers trolley. (~50 mi)"],
+["Sandcastle Waterpark","Pittsburgh","wa","SOL","both","20+ themed water attractions along the Monongahela."],
+["Moonshot Museum","Pittsburgh","sc","OFF","older","Watch real lunar spacecraft being built + run interactive space missions."],
+
+["The Franklin Institute","Philadelphia","sc,wk","SIG","both","Three floors of hands-on science + the walk-through two-story Giant Heart."],
+["Please Touch Museum","Philadelphia","sc,wk","SIG","little","A play-based children's museum built entirely around touching; ideal for K."],
+["Philadelphia Zoo","Philadelphia","an,na","SIG","both","America's first zoo, with Zoo360 trails that let animals roam overhead."],
+["Adventure Aquarium (Camden)","Philadelphia","wa,an","SIG","both","The only aquarium with Nile hippos + a walk-over Shark Bridge."],
+["Liberty Bell & Independence Hall","Philadelphia","hi,wk","SIG","older","Birthplace of American democracy; free & quick — best for the 4th-grader."],
+["Reading Terminal Market","Philadelphia","fo,wk","SIG","both","Historic covered market — Amish pretzels + dozens of vendors."],
+["Sesame Place","Philadelphia","wa,tp","SOL","little","The only fully Sesame Street-themed park on the East Coast + a water park. (~30 min)"],
+["Franklin Square","Philadelphia","na,wk","SOL","little","A restored square with a carousel, mini-golf & fountain show; a free breather."],
+["Spruce Street Harbor Park","Philadelphia","na,fo,wk","GEM","both","Summer waterfront with hammocks in the trees + floating gardens & food."],
+["Elmwood Park Zoo","Philadelphia","an,na","GEM","both","Hand-feed giraffes + zipline over bison & elk. (Norristown, ~40 min)"],
+["Morris Arboretum","Philadelphia","na","GEM","both","92 acres with a 300-ft garden railway + an 'Out on a Limb' canopy walk."],
+["Penn Museum","Philadelphia","hi","GEM","older","Real Egyptian mummies + a monumental sphinx; quieter than the big museums."],
+["Eastern State Penitentiary","Philadelphia","hi","OFF","older","A dramatic ruined 19th-c prison (held Al Capone); best for the older girl."],
+
+["Tybee Island Marine Science Center","Savannah","an,sc,wa,na","SIG","both","Touch tanks, live sea turtles + a pirate-ship playground on the sand."],
+["UGA Marine Ed Center & Aquarium","Savannah","an,sc,na,wa","GEM","both","Georgia's first saltwater aquarium — cheap, crowd-free. (Skidaway, 30 min)"],
+["Oatland Island Wildlife Center","Savannah","an,na,wk","GEM","both","A 2-mi moss-draped trail to native wolves, bobcats, gators & raptors."],
+["Savannah Children's Museum","Savannah","sc,hi","SOL","little","An outdoor interactive yard — maze, climbing, building — among rail structures."],
+["Tybee Island Light Station","Savannah","hi,na,wk","SIG","both","Climb 178 steps up Georgia's oldest lighthouse + a fort museum."],
+["Dolphin Adventure Boat Tour","Savannah","an,wa,na","SOL","both","A small-boat cruise to spot wild bottlenose dolphins."],
+["Tybee Island Beach & Pier","Savannah","wa,na,wk","SIG","both","A wide, gentle-surf beach for shelling, splashing & flat-island biking."],
+["Forsyth Park","Savannah","na,wk","SIG","both","The iconic fountain + two playgrounds & summer sprinklers."],
+["Wormsloe Historic Site","Savannah","na,hi,wk","SOL","both","An unforgettable 1.5-mi live-oak avenue + tabby ruins & marsh trails."],
+["Pin Point Heritage Museum","Savannah","hi,na,fo","OFF","older","The Gullah-Geechee story told at a former oyster & crab factory."],
+["River Street","Savannah","fo,wk,hi","SOL","both","Cobblestone riverfront — taffy pulled in the window + praline samples."],
+["Leopold's Ice Cream","Savannah","fo,wk","SIG","both","A 1919 soda fountain — a genuine local landmark, not a tourist trap."],
+["Savannah Bananas","Savannah","fo,wk,hi","SIG","both","Half baseball, half comedy at a historic stadium. <span class='warn'>2026 ticket lottery.</span>"],
+["Crab Shack at Chimney Creek","Savannah","fo,an,na","GEM","both","Marsh-side seafood + a live baby-alligator lagoon & a rescue-cat house."],
+
+["South Carolina Aquarium","Charleston","an,sc,na,wk","SIG","both","Touch tank, a 385k-gal Great Ocean Tank + a live Sea Turtle Recovery hospital."],
+["Patriots Point / USS Yorktown","Charleston","hi,sc,wk","SIG","older","Climb through a real WWII carrier with flight sims + scavenger hunts."],
+["Isle of Palms","Charleston","wa,na","SIG","both","The most family-friendly beach — wide sand, calmer waves, lifeguards."],
+["Folly Beach","Charleston","wa,na,fo","SOL","both","A laid-back surf town closest to downtown with a lively pier."],
+["Sullivan's Island + Fort Moultrie","Charleston","wa,na,hi","GEM","both","A quieter beach with tidal gullies + the off-radar alternative to Fort Sumter."],
+["Splash Zone Waterpark","Charleston","wa,tp","SOL","both","Lazy river + two 200-ft slides at James Island County Park. (summer)"],
+["Whirlin' Waters","Charleston","wa,tp","SOL","both","The county's largest water park — big slides + an Otter Bay kiddie area. (summer)"],
+["Children's Museum of the Lowcountry","Charleston","sc,wk","SOL","little","Nine hands-on exhibits, a pirate ship + an outdoor splash pad."],
+["Charles Towne Landing","Charleston","an,na,hi","GEM","both","A 22-acre natural-habitat zoo (bison, bears, pumas) + a colonial ship."],
+["Center for Birds of Prey","Charleston","an,na,sc","OFF","both","A jaw-dropping live flight demo — owls gliding inches overhead. (Awendaw)"],
+["Angel Oak Tree","Charleston","na,wk","GEM","both","A free, awe-inspiring 300-400-year-old live oak, largest east of the Mississippi."],
+["Shem Creek Park & Boardwalk","Charleston","na,an,wa,fo,wk","GEM","both","A marsh boardwalk where dolphins work the creek beside shrimp boats."],
+["Cypress Gardens","Charleston","na,an","OFF","both","A self-guided flat-bottom boat ride through a blackwater gator swamp."],
+["Joe Riley Waterfront Park","Charleston","wa,wk","SOL","little","The iconic Pineapple Fountain doubles as a free downtown splash pad."],
+
+["St. Augustine Alligator Farm","St. Augustine","an,na,sc","SIG","both","Hundreds of gators, a bird rookery, lemurs + a zip line over live crocs."],
+["Castillo de San Marcos","St. Augustine","hi,wk","SIG","both","Kids climb the ramparts of America's oldest masonry fort; cannon demos."],
+["Pirate & Treasure Museum","St. Augustine","hi,sc","SIG","both","800+ real artifacts + hands-on decks & a 12-item treasure hunt."],
+["Colonial Quarter","St. Augustine","hi,wk","SOL","both","A living-history village with blacksmiths, musket drills + a climbable watchtower."],
+["Fountain of Youth Park","St. Augustine","hi,na,an","SOL","both","15 acres of Old Florida with ~30 free-roaming peacocks + a planetarium."],
+["St. Augustine Lighthouse","St. Augustine","hi,sc,na,wk","SOL","older","A 219-step climb (44\" min) + hands-on maritime exhibits & nature trails."],
+["Anastasia State Park","St. Augustine","na,wa,an,sc","SIG","both","1,600 acres of uncrowded beach + a calm tidal lagoon for first-time kayaking."],
+["St. Augustine Beach","St. Augustine","wa,na","SOL","both","Wide, low-key, drive-on sand — relaxed for sandcastles & boogie boarding."],
+["Marineland Dolphin Adventure","St. Augustine","an,wa,sc","GEM","both","The world's original oceanarium (1938) — intimate up-close dolphin encounters."],
+["Whetstone Chocolates Tour","St. Augustine","fo","GEM","both","A 45-minute factory tasting tour with ~6 free samples."],
+["Fossil Shark Tooth Hunting","St. Augustine","na,sc,wa","OFF","both","Free ranger-led walks teach families to spot fossil teeth at low tide."],
+["GTM Estuary Kayak Tours","St. Augustine","na,an,wa,sc","OFF","older","Guided eco-tours through a protected National Estuarine Research Reserve."],
+["The Old Jail","St. Augustine","hi","SOL","older","A costumed 'deputy' marches you past the 1891 cells — theatrical & funny."],
+
+["Universal's Volcano Bay","Orlando","wa,tp","SIG","both","Best-themed water park — an aqua coaster + a no-height-limit river. <span class='warn'>Closed Oct 26 '26–Mar 24 '27.</span>"],
+["Aquatica","Orlando","wa,an","SIG","both","The animal-lover's water park — a slide passes through a ray tank; all-ages."],
+["Discovery Cove","Orlando","wa,an,na","SIG","both","All-inclusive reef snorkel + aviary & beaches; dolphin swim is 6+."],
+["LEGOLAND Florida + Water Park","Orlando","tp,wa","SOL","both","Rides scaled exactly to ages 2-10 — nobody ages out, nobody's scared."],
+["Peppa Pig Theme Park","Orlando","tp,wa","SOL","little","A 4.5-acre park built for 2-6-yr-olds; pair it with LEGOLAND."],
+["Gatorland","Orlando","an,na","GEM","both","The anti-mega-park — a 110-acre gator preserve with boardwalks & zip lines."],
+["Blue Spring State Park","Orlando","na,an,wa","OFF","both","Hundreds of wild manatees huddle here mid-Nov–March; boardwalk viewing."],
+["Wekiwa Springs State Park","Orlando","na,wa","OFF","both","72° azure spring swimming & paddling 25 min from downtown."],
+
+["Busch Gardens Tampa Bay","Tampa / St. Pete","tp,an","SIG","both","200+ species + coasters; new Lion & Hyena Ridge (spring '26)."],
+["Mote SEA","Tampa / St. Pete","sc,an,wa","SIG","both","Brand-new 3-floor aquarium ('25) — a 400k-gal Gulf habitat overhead. Go to UTC, not the old site."],
+["The Florida Aquarium","Tampa / St. Pete","an,wa,sc","SOL","both","Downtown & hands-on; pairs perfectly with Glazer on the Riverwalk."],
+["Clearwater Marine Aquarium","Tampa / St. Pete","an,na","SOL","both","A working rescue hospital (not a show park); mission-driven."],
+["Glazer Children's Museum","Tampa / St. Pete","sc,wk","SOL","little","20+ interactive exhibits + a two-story water climber on the Riverwalk."],
+["Great Explorations","Tampa / St. Pete","sc","GEM","little","Hands-on & 'designed for 10 and under'; pair with Sunken Gardens."],
+["Sunken Gardens","Tampa / St. Pete","na,wk","GEM","both","A 100-year-old sunken tropical garden with flamingos in walkable St. Pete."],
+
+["Swim with Manatees — Three Sisters Springs","Nature Coast (Crystal River)","wa,an,na","SIG","both","The only place in the US to legally swim with wild manatees. (Nov 15–Mar 31)"],
+["Weeki Wachee Springs","Nature Coast (Crystal River)","wa,hi,an","SIG","both","The legendary underwater mermaid show + Buccaneer Bay spring slides. (summer)"],
+["Giraffe Ranch","Nature Coast (Crystal River)","an,na","GEM","both","Feed giraffes from a safari truck on a 47-acre preserve. (Dade City, reservation-only)"],
+["Ellie Schiller Homosassa Springs","Nature Coast (Crystal River)","an,na,wa","GEM","both","Walk underwater into the 'Fish Bowl' — manatees year-round + a wildlife boardwalk."],
+["Rainbow Springs State Park","Nature Coast (Crystal River)","wa,na","SOL","both","A crystal 72° swimming hole + waterfalls & tubing. <span class='warn'>Reservations from Apr 29 '26.</span>"],
+["Silver Springs State Park","Nature Coast (Crystal River)","na,an,hi","SOL","both","World-famous glass-bottom boat tours + a wild rhesus macaque troop."],
+["Devil's Den Prehistoric Spring","Nature Coast (Crystal River)","wa,na","OFF","older","Snorkel a sunken cavern spring lit by a beam of daylight. (6+, strong swimmers)"],
+["Discovery Place Science","Charlotte","sc","SIG","both","Four floors of hands-on wonder — a two-story rainforest, live animals, and IMAX."],
+["U.S. National Whitewater Center","Charlotte","wa,na","SIG","both","Raft an Olympic whitewater channel, then free-roam miles of woodland trails."],
+["Carowinds","Charlotte","tp,wa","SIG","both","Massive amusement park on the NC/SC line with its own Carolina Harbor water park."],
+["SEA LIFE Charlotte-Concord Aquarium","Charlotte","an,wa","SOL","both","Walk-through ocean tunnel, rays, seahorses, and a kid-height touch pool at Concord Mills."],
+["Carolina Raptor Center","Charlotte","an,na","GEM","both","Eye-level eagles, owls, and vultures along a wooded trail — a raptor hospital you can walk."],
+["Daniel Stowe Botanical Garden","Charlotte","na","SOL","both","Fountains, a butterfly-friendly canal garden, and a kids' cottage across 380 acres."],
+["ImaginOn","Charlotte","wk","GEM","both","A free storytelling wonderland — children's library, play spaces, and a puppet-lined theater."],
+["Discovery Place Kids-Huntersville","Charlotte","sc","SOL","little","Pint-sized science playground built for toddlers-to-8 to climb, build, and splash."],
+["Reed Gold Mine","Charlotte","hi,na","GEM","both","Site of America's first gold rush — tour real underground tunnels, then pan for gold."],
+["Schiele Museum of Natural History & Planetarium","Charlotte","sc,na","GEM","both","Dinosaurs, a nature trail, a re-created Catawba village, and a domed planetarium in Gastonia."],
+["Charlotte Museum of Nature","Charlotte","an,na","SOL","both","Newly reopened nature museum with live critters, otters, and a butterfly pavilion."],
+["Charlotte Museum of History","Charlotte","hi","SOL","older","Tour Charlotte's oldest building, the 1774 Hezekiah Alexander stone house, on 8 wooded acres."],
+["Ray's Splash Planet","Charlotte","wa","SOL","both","Indoor water park with a lazy river, slides, and a zero-depth zone — rain-proof splashing."],
+["Latta Nature Preserve & Quest Nature Center","Charlotte","na,an","OFF","both","1,460 lakeside acres with free trails and a nature center's 6,000-gallon native-fish tank."],
+["Freedom Park & Little Sugar Creek Greenway","Charlotte","na,wk","GEM","both","Ducks, a big playground, and a paved creekside greenway loop in the heart of the city."],
+["Dollywood","Gatlinburg / Pigeon Forge","tp,fo","SIG","both","Appalachian-themed rides, crafts, and cinnamon bread that thrill a 5- and 9-year-old alike."],
+["Dollywood's Splash Country","Gatlinburg / Pigeon Forge","wa","SIG","both","A mountain-fed water park with a wave pool and toddler zones for the family's water-lovers."],
+["Anakeesta","Gatlinburg / Pigeon Forge","na,wk","SIG","both","A chondola to a mountaintop of treetop walks, a kids' Treehouse Village, and long-range views."],
+["Gatlinburg SkyLift Park & SkyBridge","Gatlinburg / Pigeon Forge","na,wk","SIG","both","North America's longest pedestrian suspension bridge with a glass-floor panel over the valley."],
+["WonderWorks","Gatlinburg / Pigeon Forge","sc","SOL","both","An upside-down house of 100+ hands-on science exhibits — hurricane simulator to bed of nails."],
+["Ober Mountain","Gatlinburg / Pigeon Forge","na,wa","SOL","both","Aerial tram to year-round snow tubing, an alpine slide, and a black-bear wildlife encounter."],
+["Cades Cove Loop","Gatlinburg / Pigeon Forge","an,na","SIG","both","An 11-mile loop of black bears, deer, and 1800s cabins — go at dawn for wildlife."],
+["Clingmans Dome (Kuwohi)","Gatlinburg / Pigeon Forge","na","GEM","older","A spiraling ramp to the Smokies' highest point rewards a half-mile climb with 360° views."],
+["Sugarlands Visitor Center & Salamander Creeks","Gatlinburg / Pigeon Forge","sc,na","GEM","both","Grab a free Junior Ranger booklet, then hunt salamanders along Fighting Creek and Cataract Falls."],
+["The Island in Pigeon Forge","Gatlinburg / Pigeon Forge","wk,fo","SOL","both","Free-to-stroll plaza with dancing fountains kids can splash in and the 200-ft Smoky Mountain Wheel."],
+["Smoky Mountain Alpine Coaster","Gatlinburg / Pigeon Forge","na","SOL","both","The longest downhill coaster in the U.S. lets riders control their own speed through the forest."],
+["Titanic Museum Attraction","Gatlinburg / Pigeon Forge","hi","SIG","both","Board a half-scale ship, get a real passenger's boarding pass, and touch a real iceberg."],
+["Ripley's Believe It or Not! Odditorium","Gatlinburg / Pigeon Forge","sc","OFF","both","A quirky rainy-day romp of oddities, illusions, and a moving-floor tunnel that wows both girls."],
+["Dollywood's DreamMore Resort","Gatlinburg / Pigeon Forge","tp,wa","SOL","both","A family base with splash pad, pools, and shuttle-and-perk access to both Dollywood parks."],
+["NC Museum of Natural Sciences","NC Triangle (Raleigh–Durham)","sc,an,na","SIG","both","Four floors of live animals, whale skeletons, and real dinosaur fossils — and it's completely free."],
+["Museum of Life and Science","NC Triangle (Raleigh–Durham)","sc,an,na","SIG","both","Ride a train past black bears and lemurs, then hit dinosaurs and a giant outdoor science playground."],
+["Duke Lemur Center","NC Triangle (Raleigh–Durham)","an,sc","SIG","both","Walk within feet of leaping ring-tailed lemurs at the world's premier lemur sanctuary."],
+["Marbles Kids Museum","NC Triangle (Raleigh–Durham)","sc,wk","SIG","little","All-day hands-on play city built for tiny hands, with a giant IMAX dome attached."],
+["Morehead Planetarium & Science Center","NC Triangle (Raleigh–Durham)","sc","SOL","both","The dome where NASA astronauts trained now beams full-dome star shows over Chapel Hill."],
+["NC Museum of History","NC Triangle (Raleigh–Durham)","hi","SOL","older","Free galleries walk kids from Native peoples to space flight in the heart of Raleigh."],
+["Sarah P. Duke Gardens","NC Triangle (Raleigh–Durham)","na,wk","SIG","both","55 acres of ponds, koi, terraces, and streams — a storybook garden, free to roam."],
+["NC Museum of Art Park","NC Triangle (Raleigh–Durham)","na,wk","GEM","both","Miles of trails woven through giant outdoor sculptures the kids can walk right up to."],
+["Pullen Park","NC Triangle (Raleigh–Durham)","wa,wk","SOL","little","America's fifth-oldest amusement park with a 1912 carousel, kiddie boats, and a pint-sized train."],
+["NC Botanical Garden","NC Triangle (Raleigh–Durham)","na","GEM","both","Carnivorous-plant bogs and a woodland kids' trail make this Chapel Hill's free nature classroom."],
+["JC Raulston Arboretum","NC Triangle (Raleigh–Durham)","na","GEM","both","A quiet, free NC State garden with a whimsical winding lath house and butterfly-filled borders."],
+["Durham Bulls Baseball","NC Triangle (Raleigh–Durham)","hi,fo","SOL","both","Bull-snorting home runs, dollar dogs, and fireworks at the ballpark from the movie."],
+["Frankie's Fun Park","NC Triangle (Raleigh–Durham)","tp","SOL","both","Go-karts, mini golf, laser tag, and bumper boats when the girls need pure adrenaline."],
+["William B. Umstead State Park","NC Triangle (Raleigh–Durham)","na,wa","GEM","both","5,600 forested acres with easy lake trails and rowboat rentals minutes from the highway."],
+["American Tobacco Trail","NC Triangle (Raleigh–Durham)","na,wk","OFF","both","A flat rail-trail on an old tobacco line — perfect for a stroller-and-scooter family ramble."],
+["Jordan Lake State Recreation Area","NC Triangle (Raleigh–Durham)","wa,na,an","GEM","both","Sandy swim beaches plus one of the East's biggest bald-eagle populations overhead."]
+];
+
+// corridor diagrams: [title, tag, nodes[[label,kind]], connectors[], branch]
+let COR=[
+ ["Tennessee Valley → Gateway West","NW · Spoke 01",
+  [["Greenville","home"],["Chattanooga","stay"],["Nashville","stay"],["St. Louis","stay"]],
+  ["2.5h","2h","4.5h"],
+  "Branch: <b>Chattanooga</b> ▸ 1.5h ▸ <b>Huntsville</b> (Space & Rocket Center)"],
+ ["Blue Ridge → Ohio Valley","N · Spoke 02",
+  [["Greenville","home"],["Knoxville","stay"],["Gatlinburg / Pigeon Forge","stay"],["Louisville","stay"],["Cincinnati","stay"],["Columbus / Indy","pass"]],
+  ["2h","1h","3h","1.5h","1.75h"],
+  "Knoxville is the gateway — <b>Gatlinburg / Pigeon Forge</b> (Dollywood + the Smokies) sit 45 min off it."],
+ ["Piedmont → Mid-Atlantic","NE · Spoke 03",
+  [["Greenville","home"],["Charlotte","stay"],["NC Triangle","stay"],["Roanoke / Shenandoah","pass"],["Washington DC","stay"],["Williamsburg / Philly","pass"]],
+  ["1.5h","2h","3h","2.5h","2.5h"],
+  "Branch: <b>Charlotte</b> ▸ WV route ▸ <b>Pittsburgh</b> (~7h). <b>Charlotte</b> & the <b>NC Triangle</b> (Raleigh–Durham) are now overnight hubs in their own right."],
+ ["Lowcountry → First Coast","SE · Spoke 04",
+  [["Greenville","home"],["Charleston / Savannah","stay"],["St. Augustine","stay"],["Orlando","stay"]],
+  ["3.5h","2h","2h"],
+  "The east-Florida coastal run — Charleston & Savannah are twin gateways."],
+ ["I-75 → Nature Coast","S · Spoke 05",
+  [["Greenville","home"],["Atlanta","stay"],["Macon","pass"],["Ocala / Crystal River","stay"],["Tampa","stay"]],
+  ["2h","1.5h","3h","1.5h"],
+  "The inland/west-Florida run — Atlanta is the launch point most trips skip."]
+];
+
+// ---- render corridors ----
+function renderCorridors(){
+const corEl=document.getElementById('corridors');
+corEl.innerHTML='';
+COR.forEach(c=>{
+  const [title,tag,nodes,segs,branch]=c;
+  let route='';
+  nodes.forEach((n,i)=>{
+    route+=`<span class="node ${n[1]}"><span class="dot"></span>${n[0]}</span>`;
+    if(i<segs.length) route+=`<span class="seg">${segs[i]}</span>`;
+  });
+  corEl.insertAdjacentHTML('beforeend',
+    `<div class="corridor"><div class="cor-tag">${tag}</div><h3>${title}</h3>
+     <div class="route">${route}</div><div class="branch">${branch}</div></div>`);
+});
+}
+
+// ---- theme chips ----
+function renderThemeChips(){
+const themeRow=document.getElementById('themeRow');
+themeRow.innerHTML='';
+Object.entries(THEMES).forEach(([k,v])=>{
+  themeRow.insertAdjacentHTML('beforeend',
+    `<button class="chip theme" data-theme="${k}" aria-pressed="false">
+       <span class="swatch" style="background:${v[1]}"></span>${v[0]}</button>`);
+});
+bind('.chip.theme',state.themes,'theme');
+}
+
+// ---- render library ----
+let order=[];
+function renderLibrary(){
+document.getElementById('totCount').textContent=A.length;
+const citiesEl=document.getElementById('cities');
+citiesEl.innerHTML='';
+order=Object.keys(CITIES);
+order.forEach(city=>{
+  const meta=CITIES[city];
+  const items=A.filter(a=>a[1]===city);
+  let cards='';
+  items.forEach(a=>{
+    const [name,,tags,type,age,why]=a;
+    const tagHtml=tags.split(',').map(t=>
+      `<span class="tg" style="background:${THEMES[t][1]}">${THEMES[t][0]}</span>`).join('');
+    const ageLabel=age==='both'?'Ages 5 & 9–10':age==='older'?'Best 9–10':'Great at 5';
+    const priceHtml=PRICES[name]
+      ?`<div class="price">${PRICES[name]}</div>`
+      :`<div class="price pending">— refresh to fetch</div>`;
+    cards+=`<article class="card" data-tags="${tags}" data-type="${type}" data-age="${age}"
+       data-name="${name.toLowerCase()} ${why.toLowerCase()}">
+       <div class="card-top"><h4>${name}</h4><span class="badge ${type}">${
+         type==='SIG'?'Signature':type==='GEM'?'Hidden gem':type==='OFF'?'Off-beat':'Solid'}</span></div>
+       <p class="why">${why}</p>
+       <div class="card-tags">${tagHtml}<span class="age">${ageLabel}</span></div>
+       ${priceHtml}</article>`;
+  });
+  const dated=PRICE_DATES[city];
+  const stamp=dated
+    ?`<span class="price-stamp fresh"><span class="dotp"></span>Prices as of ${dated}</span>`
+    :`<span class="price-stamp"><span class="dotp"></span>Prices not yet fetched</span>`;
+  const evs=EVENTS[city]||[];
+  const evHtml=evs.length
+    ?`<div class="events"><span class="ev-lab">Check events →</span>${evs.map(e=>
+        `<a class="ev" href="${e.u}" target="_blank" rel="noopener" title="${e.d}">${e.n}</a>`).join('')}</div>`
+    :'';
+  citiesEl.insertAdjacentHTML('beforeend',
+    `<div class="city-block" data-city="${city}">
+       <div class="city-head"><h3>${city}</h3>
+         <div class="city-meta"><span class="spoke-tag">${SPOKES[meta.spoke]}</span>
+           <span class="drive">${meta.drive} drive</span>
+           <span>${items.length} logged</span></div>
+         <div class="city-actions">${stamp}
+           <button class="updateBtn" data-city="${city}" title="Copy a refresh request to paste into Claude">
+             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+             Update prices</button></div>
+         <p class="overlook"><b>Most overlook →</b> ${meta.overlook}</p>
+         ${evHtml}
+         <div class="citybudget" data-city="${city}"></div></div>
+       <div class="grid">${cards}</div></div>`);
+});
+bindUpdateBtns();
+}
+
+// ---- filtering ----
+const state={themes:new Set(),types:new Set(),ages:new Set(),q:''};
+const countEl=document.getElementById('count');
+function apply(){
+  let shown=0;
+  document.querySelectorAll('.city-block').forEach(block=>{
+    let blockShown=0;
+    block.querySelectorAll('.card').forEach(card=>{
+      const tags=card.dataset.tags.split(',');
+      const okTheme=!state.themes.size||[...state.themes].some(t=>tags.includes(t));
+      const okType=!state.types.size||state.types.has(card.dataset.type);
+      const okAge=!state.ages.size||state.ages.has(card.dataset.age)||card.dataset.age==='both';
+      const okQ=!state.q||card.dataset.name.includes(state.q);
+      const vis=okTheme&&okType&&okAge&&okQ;
+      card.classList.toggle('dim',!vis);
+      if(vis){blockShown++;shown++;}
+    });
+    block.style.display=blockShown?'':'none';
+  });
+  countEl.textContent=`Showing ${shown} of ${A.length} attractions`;
+  document.getElementById('empty').style.display=shown?'none':'block';
+}
+function bind(sel,set,attr){
+  document.querySelectorAll(sel).forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const v=btn.dataset[attr];
+      const on=btn.getAttribute('aria-pressed')==='true';
+      btn.setAttribute('aria-pressed',String(!on));
+      on?set.delete(v):set.add(v);
+      apply();
+    });
+  });
+}
+bind('.chip.type',state.types,'type');
+bind('.chip.age',state.ages,'age');
+document.getElementById('search').addEventListener('input',e=>{state.q=e.target.value.toLowerCase().trim();apply();});
+function reset(){
+  state.themes.clear();state.types.clear();state.ages.clear();state.q='';
+  document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed','false'));
+  document.getElementById('search').value='';apply();
+}
+document.getElementById('reset').addEventListener('click',reset);
+document.getElementById('reset2').addEventListener('click',reset);
+
+// ---- on-demand pricing hand-off ----
+// The page can't reach the internet (locked-down artifact), so "Update prices"
+// copies a ready-made request to the clipboard. Paste it to Claude, and it
+// researches current admission for that city and redeploys this same page.
+const toast=document.getElementById('toast');
+let toastT;
+function showToast(html){
+  toast.innerHTML=html;toast.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>toast.classList.remove('show'),4200);
+}
+function bindUpdateBtns(){
+document.querySelectorAll('.updateBtn').forEach(btn=>{
+  btn.addEventListener('click',async()=>{
+    const city=btn.dataset.city;
+    const msg=`Refresh pricing in my Family Adventure Atlas for ${city}: research current 2026–2027 `
+      +`admission for every attraction listed under ${city} (fill PRICES) and a typical family-of-four `
+      +`hotel nightly rate (set HOTELS["${city}"]), set PRICE_DATES["${city}"], and redeploy to the same URL.`;
+    let ok=false;
+    try{await navigator.clipboard.writeText(msg);ok=true;}
+    catch(e){
+      const ta=document.createElement('textarea');ta.value=msg;ta.style.position='fixed';
+      ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+      try{ok=document.execCommand('copy');}catch(_){}document.body.removeChild(ta);
+    }
+    showToast(ok
+      ?`Copied a refresh request for <b>${city}</b> — paste it to Claude to update prices.`
+      :`Ask Claude: <b>“Update prices for ${city}”</b> to refresh this city.`);
+  });
+});
+}
+
+// ---- budget engine ----
+// Distances are estimated from city coordinates (great-circle × 1.2 road factor),
+// so any route the builder assembles gets a mileage without a hand-built matrix.
+const HOME="Greenville";
+let COORDS={
+  "Greenville":[34.85,-82.39],"Atlanta":[33.75,-84.39],"Chattanooga":[35.05,-85.31],
+  "Nashville":[36.16,-86.78],"Huntsville":[34.73,-86.59],"Knoxville":[35.96,-83.92],
+  "St. Louis":[38.63,-90.20],"Louisville":[38.25,-85.76],"Cincinnati":[39.10,-84.51],
+  "Columbus":[39.96,-82.99],"Indianapolis":[39.77,-86.16],"Washington DC":[38.90,-77.04],
+  "Williamsburg":[37.27,-76.71],"Pittsburgh":[40.44,-80.00],"Philadelphia":[39.95,-75.16],
+  "Savannah":[32.08,-81.09],"Charleston":[32.78,-79.93],"St. Augustine":[29.90,-81.31],
+  "Orlando":[28.54,-81.38],"Tampa / St. Pete":[27.95,-82.46],"Nature Coast (Crystal River)":[28.88,-82.59],
+  "Charlotte":[35.23,-80.84],"Gatlinburg / Pigeon Forge":[35.79,-83.55],"NC Triangle (Raleigh–Durham)":[35.90,-78.78]
+};
+function hav(a,b){const R=3959,r=x=>x*Math.PI/180;
+  const dLat=r(b[0]-a[0]),dLon=r(b[1]-a[1]);
+  const s=Math.sin(dLat/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));}
+function dist(a,b){return hav(COORDS[a],COORDS[b])*1.2;}
+function num(id){return parseFloat(document.getElementById(id).value)||0;}
+function money(n){return "$"+Math.round(n).toLocaleString();}
+function hotelRate(city){return HOTELS[city]!=null?HOTELS[city]:num("hotel");}
+
+function recompute(){
+  const gas=num("gas"),mpg=num("mpg")||25,food=num("food"),nights=Math.max(0,Math.round(num("nights"))),pct=num("buffer");
+  document.querySelectorAll(".citybudget").forEach(el=>{
+    const city=el.dataset.city, rt=dist(HOME,city)*2, fuel=rt/mpg*gas;
+    const hr=hotelRate(city), lodge=hr*nights, foodc=food*(nights+1);
+    const tot=(fuel+lodge+foodc)*(1+pct/100);
+    const est=HOTELS[city]!=null?"":`<span class="est">est</span>`;
+    el.innerHTML=`<span class="bb"><i>FUEL</i>RT ${Math.round(rt)}mi · <b>${money(fuel)}</b></span>`
+      +`<span class="bb"><i>HOTEL</i>${nights}n × ${money(hr)}${est} · <b>${money(lodge)}</b></span>`
+      +`<span class="bb"><i>FOOD</i>${nights+1}d · <b>${money(foodc)}</b></span>`
+      +`<span class="bb tot"><i>BASE</i><b>${money(tot)}</b> <small>+${pct}% buffer</small></span>`;
+  });
+  computeTrip();
+}
+
+// ---- trip builder ----
+let itin=[];
+let dragSrc=null;
+let PRESETS={
+  "Gateway West":["Chattanooga","Nashville","St. Louis"],
+  "Ohio Valley":["Knoxville","Louisville","Cincinnati","Columbus"],
+  "Mid-Atlantic":["Charlotte","NC Triangle (Raleigh–Durham)","Washington DC","Williamsburg"],
+  "Lowcountry → First Coast":["Charleston","St. Augustine","Orlando"],
+  "Nature Coast":["Atlanta","Nature Coast (Crystal River)","Tampa / St. Pete"],
+  "Smoky Mountains":["Knoxville","Gatlinburg / Pigeon Forge"]
+};
+function renderQuickRoutes(){
+const qr=document.getElementById("quickroutes");
+qr.innerHTML=Object.keys(PRESETS).map(k=>`<button class="qrbtn" data-r="${k}">${k}</button>`).join("");
+qr.querySelectorAll(".qrbtn").forEach(b=>b.addEventListener("click",()=>{
+  const n=Math.max(1,Math.round(num("nights")));
+  itin=PRESETS[b.dataset.r].map(c=>({city:c,nights:n}));renderItin();
+}));
+const sel=document.getElementById("addStop");
+sel.innerHTML=`<option value="">+ Add a stop…</option>`+order.map(c=>`<option>${c}</option>`).join("");
+sel.onchange=()=>{if(sel.value){const n=Math.max(1,Math.round(num("nights")));
+  itin.push({city:sel.value,nights:n});sel.value="";renderItin();}};
+}
+
+function renderItin(){
+  const el=document.getElementById("itinerary");
+  if(!itin.length){el.innerHTML=`<div class="itin-empty">Pick a quick route above, or add stops one by one. Every trip starts and ends in Greenville.</div>`;computeTrip();return;}
+  let h=`<div class="itin-node home">Greenville<small>home</small></div>`;
+  itin.forEach((s,i)=>{
+    h+=`<div class="itin-leg">↓</div><div class="itin-stop" draggable="true" data-i="${i}">`
+      +`<span class="grip" title="Drag to reorder" aria-hidden="true">⠿</span>`
+      +`<span class="isc">${s.city}</span>`
+      +`<label>nights <input type="number" min="0" value="${s.nights}" data-i="${i}" class="nin"></label>`
+      +`<button class="rm" data-i="${i}" aria-label="Remove ${s.city}">✕</button></div>`;
+  });
+  h+=`<div class="itin-leg">↓</div><div class="itin-node home">Greenville<small>home</small></div>`;
+  el.innerHTML=h;
+  el.querySelectorAll(".nin").forEach(inp=>inp.addEventListener("input",e=>{
+    itin[+e.target.dataset.i].nights=Math.max(0,Math.round(parseFloat(e.target.value)||0));computeTrip();}));
+  el.querySelectorAll(".rm").forEach(b=>b.addEventListener("click",e=>{
+    itin.splice(+e.currentTarget.dataset.i,1);renderItin();}));
+  el.querySelectorAll(".itin-stop").forEach(st=>{
+    st.addEventListener("dragstart",e=>{
+      if(e.target.closest(".nin,.rm")){e.preventDefault();return;}
+      dragSrc=+st.dataset.i;st.classList.add("dragging");e.dataTransfer.effectAllowed="move";
+      try{e.dataTransfer.setData("text/plain",String(dragSrc));}catch(_){}
+    });
+    st.addEventListener("dragend",()=>{dragSrc=null;
+      el.querySelectorAll(".itin-stop").forEach(s=>s.classList.remove("dragging","drop-before","drop-after"));});
+    st.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";
+      const r=st.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;
+      st.classList.toggle("drop-after",after);st.classList.toggle("drop-before",!after);});
+    st.addEventListener("dragleave",()=>st.classList.remove("drop-before","drop-after"));
+    st.addEventListener("drop",e=>{e.preventDefault();
+      if(dragSrc==null)return;
+      const r=st.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;
+      reorder(dragSrc,after?(+st.dataset.i)+1:(+st.dataset.i));});
+  });
+  computeTrip();
+}
+function reorder(from,insert){
+  const [x]=itin.splice(from,1);
+  let t=insert>from?insert-1:insert;
+  t=Math.max(0,Math.min(itin.length,t));
+  itin.splice(t,0,x);renderItin();
+}
+function tripMiles(seq){
+  const r=[HOME,...(seq||itin.map(s=>s.city)),HOME];
+  let m=0;for(let i=1;i<r.length;i++)m+=dist(r[i-1],r[i]);return m;
+}
+function recommend(){
+  if(itin.length<2)return;
+  const nightsBy={};itin.forEach(s=>nightsBy[s.city]=s.nights);
+  // nearest-neighbor seed from home
+  let pool=itin.map(s=>s.city),seq=[],cur=HOME;
+  while(pool.length){let bi=0,bd=Infinity;
+    pool.forEach((c,i)=>{const d=dist(cur,c);if(d<bd){bd=d;bi=i;}});
+    cur=pool.splice(bi,1)[0];seq.push(cur);}
+  // 2-opt refinement (loop returns home, so distance includes the leg back)
+  let improved=true;
+  while(improved){improved=false;
+    for(let i=0;i<seq.length-1;i++)for(let j=i+1;j<seq.length;j++){
+      const cand=seq.slice(0,i).concat(seq.slice(i,j+1).reverse(),seq.slice(j+1));
+      if(tripMiles(cand)<tripMiles(seq)-0.01){seq=cand;improved=true;}
+    }}
+  itin=seq.map(c=>({city:c,nights:nightsBy[c]}));renderItin();
+}
+function computeTrip(){
+  const box=document.getElementById("tripSummary");
+  if(!itin.length){box.innerHTML="";const mc=document.getElementById("modeCompare");if(mc)mc.innerHTML="";return;}
+  const gas=num("gas"),mpg=num("mpg")||25,food=num("food"),pct=num("buffer");
+  const route=[HOME,...itin.map(s=>s.city),HOME];
+  let miles=0;for(let i=1;i<route.length;i++)miles+=dist(route[i-1],route[i]);
+  const fuel=miles/mpg*gas;
+  const lodge=itin.reduce((s,x)=>s+hotelRate(x.city)*x.nights,0);
+  const totalNights=itin.reduce((s,x)=>s+x.nights,0);
+  const days=totalNights+1, foodc=food*days;
+  const sub=fuel+lodge+foodc, buf=sub*pct/100, tot=sub+buf;
+  box.innerHTML=
+    `<div class="ts-row"><span><i>DRIVING</i>${Math.round(miles).toLocaleString()} mi round trip · ${itin.length} stop${itin.length>1?"s":""}</span><b>${money(fuel)}</b></div>`
+   +`<div class="ts-row"><span><i>LODGING</i>${totalNights} night${totalNights===1?"":"s"}</span><b>${money(lodge)}</b></div>`
+   +`<div class="ts-row"><span><i>FOOD</i>${days} day${days===1?"":"s"} × ${money(food)}</span><b>${money(foodc)}</b></div>`
+   +`<div class="ts-row sub"><span>Subtotal</span><b>${money(sub)}</b></div>`
+   +`<div class="ts-row"><span><i>BUFFER</i>${pct}% contingency</span><b>${money(buf)}</b></div>`
+   +`<div class="ts-row total"><span>Trip base</span><b>${money(tot)}</b></div>`
+   +`<p class="ts-note">Base travel + lodging + food only. Add the attractions you choose on top — refresh each city's prices to fill those in.</p>`;
+  computeFly({fuel,lodge,foodc,pct,days,driveTot:tot,gas,mpg});
+  renderTripEvents();
+}
+// ---- trip finder ----
+// Generates candidate itineraries (each single destination + each preset), costs
+// every one with the SAME model as computeTrip, keeps those within budget, and
+// ranks them by number of stops (more to see) then by cost (cheaper first).
+let tfCandidates=[];
+function findTrips(){
+  const budget=num("tfBudget");
+  const N=Math.max(1,Math.round(num("tfNights")));
+  const gas=num("gas"),mpg=num("mpg")||25,food=num("food"),pct=num("buffer");
+  const routes=Object.keys(CITIES).map(c=>[c]).concat(Object.values(PRESETS));
+  const kept=[];
+  routes.forEach(route=>{
+    const stops=route.length;
+    if(stops>N)return;
+    const base=Math.floor(N/stops), rem=N%stops;
+    const nightsArr=route.map((_,i)=>base+(i<rem?1:0));
+    const seq=[HOME,...route,HOME];
+    let miles=0;for(let i=1;i<seq.length;i++)miles+=dist(seq[i-1],seq[i]);
+    const fuel=miles/mpg*gas;
+    const lodge=route.reduce((s,c,i)=>s+hotelRate(c)*nightsArr[i],0);
+    const days=N+1, foodc=food*days;
+    const sub=fuel+lodge+foodc, buf=sub*pct/100, tot=sub+buf;
+    if(tot<=budget)kept.push({route,nightsArr,N,miles,fuel,lodge,foodc,tot,headroom:budget-tot,stops});
+  });
+  kept.sort((a,b)=> b.stops-a.stops || a.tot-b.tot);
+  tfCandidates=kept.slice(0,8);
+  renderTfResults(pct);
+}
+function renderTfResults(pct){
+  const box=document.getElementById("tfResults");if(!box)return;
+  if(!tfCandidates.length){
+    box.innerHTML=`<div class="tf-empty">No trips fit that budget with those assumptions. Try raising the budget, adding more nights, or planning fewer stops.</div>`;
+    return;
+  }
+  box.innerHTML=tfCandidates.map((c,idx)=>{
+    const nper=c.nightsArr.join("+")+" night"+(c.N===1&&c.stops===1?"":"s");
+    return `<div class="tf-card">`
+      +`<div class="tf-top">${c.route.join(" → ")}</div>`
+      +`<div class="tf-meta">Greenville → ${c.route.join(" → ")} → Greenville</div>`
+      +`<div class="tf-meta">${nper} · ${c.N} night${c.N===1?"":"s"} · ${c.stops} stop${c.stops>1?"s":""} · ~${Math.round(c.miles).toLocaleString()} mi round trip</div>`
+      +`<div class="tf-cost">drive ${money(c.fuel)} · lodging ${money(c.lodge)} · food ${money(c.foodc)} · +${pct}%</div>`
+      +`<div class="tf-tot">Total <b>${money(c.tot)}</b></div>`
+      +`<div class="tf-head">≈ ${money(c.headroom)} left for attractions &amp; meals</div>`
+      +`<button class="qrbtn" data-tf="${idx}">Load into planner</button>`
+      +`</div>`;
+  }).join("");
+}
+
+// ---- drive vs fly comparison ----
+// Fly total swaps road fuel for: airfare (whole party) + a rental car (rate × trip
+// days) + local gas at the destination, keeping lodging/food/buffer the same so the
+// two modes are directly comparable.
+// Departure airports we'll fly from. GSP is home (no drive); ATL/CLT are bigger,
+// often cheaper hubs but you must drive there and back, so their fair cost includes
+// round-trip drive-to-airport fuel.
+const DEP_OPTS=[["GSP",null],["ATL","Atlanta"],["CLT","Charlotte"]];
+function depCity(code){const o=DEP_OPTS.find(x=>x[0]===code);return o?o[1]:null;}
+function airportDriveFuel(code,gas,mpg){const c=depCity(code);return c?dist(HOME,c)*2/(mpg||25)*gas:0;}
+function farthestStop(){
+  if(!itin.length)return null;
+  let best=null,bd=-1;
+  itin.forEach(s=>{const d=dist(HOME,s.city);if(d>bd){bd=d;best=s.city;}});
+  if(!best)return null;
+  return {city:best,airport:(CITIES[best]&&CITIES[best].airport)||null};
+}
+function computeFly(o){
+  const fc=document.getElementById("modeCompare");if(!fc)return;
+  const far=farthestStop();
+  const dep=(document.getElementById("depAirport")||{}).value||"GSP";
+  const airfare=num("airfare"),carRate=num("carRate"),localMi=num("localMi");
+  const toAirport=airportDriveFuel(dep,o.gas,o.mpg);
+  const rental=carRate*o.days, localGas=localMi*o.days/(o.mpg||25)*o.gas;
+  const flyTot=(airfare+toAirport+rental+localGas+o.lodge+o.foodc)*(1+o.pct/100);
+  const win=airfare>0?(flyTot<o.driveTot?'fly':'drive'):'';
+  const delta=Math.abs(o.driveTot-flyTot);
+  const dest=far?`${dep}→${far.airport||'?'} · ${far.city}${far.airport?'':' (no airport)'}`:'';
+  const toBk=toAirport>0?` · drive to ${dep} ${money(toAirport)}`:'';
+  fc.innerHTML=
+    `<div class="mc-head">Drive vs Fly${dest?` <small>fly ${dest}</small>`:''}</div>`
+   +`<div class="mc-grid">`
+   +`<div class="mc-card${win==='drive'?' win':''}"><div class="mc-mode">🚗 Drive</div><div class="mc-tot">${money(o.driveTot)}</div>`
+     +`<div class="mc-bk">fuel ${money(o.fuel)} · lodging ${money(o.lodge)} · food ${money(o.foodc)} · +${o.pct}%</div></div>`
+   +`<div class="mc-card${win==='fly'?' win':''}"><div class="mc-mode">✈️ Fly</div><div class="mc-tot">${airfare>0?money(flyTot):'—'}</div>`
+     +`<div class="mc-bk">airfare ${airfare>0?money(airfare):'(enter)'}${toBk} · rental ${money(rental)} (${o.days}d×${money(carRate)}) · local gas ${money(localGas)} · lodging ${money(o.lodge)} · food ${money(o.foodc)} · +${o.pct}%</div></div>`
+   +`</div>`
+   +(airfare>0?`<div class="mc-verdict">${win==='fly'?'✈️ Flying':'🚗 Driving'} is cheaper by <b>${money(delta)}</b></div>`
+              :`<div class="mc-verdict muted">Pick a departure airport &amp; enter airfare — or ✈️ Fetch cheapest (checks GSP, ATL &amp; CLT).</div>`);
+}
+async function fetchAirfare(){
+  const note=document.getElementById("fareNote");
+  const far=farthestStop();
+  if(!far){note.textContent="Add a stop first.";return;}
+  if(!far.airport){note.textContent=`No airport mapped for ${far.city}.`;return;}
+  const sv=document.getElementById("tripStart").value;
+  if(!sv){note.textContent="Set a trip start date first.";return;}
+  const totalNights=itin.reduce((s,x)=>s+x.nights,0);
+  const p=sv.split("-").map(Number);const start=new Date(p[0],p[1]-1,p[2]);
+  const ret=new Date(start);ret.setDate(ret.getDate()+Math.max(1,totalNights));
+  const adults=Math.max(1,Math.round(num("adults"))),kids=Math.max(0,Math.round(num("kids")));
+  const gas=num("gas"),mpg=num("mpg")||25;
+  note.textContent="Searching GSP, ATL & CLT…";
+  try{
+    const results=await Promise.all(DEP_OPTS.map(async([code])=>{
+      try{
+        const q=`/api/atlas/flights?from=${code}&to=${far.airport}&depart=${sv}&return=${isoDate(ret)}&adults=${adults}&children=${kids}`;
+        const r=await atlasFetch(q);const d=await r.json();
+        const cash=d&&d.bestCash&&d.bestCash.effectiveUsd;
+        return {code,cash:(typeof cash==="number"?cash:null),d};
+      }catch(_){return {code,cash:null};}
+    }));
+    const priced=results.filter(x=>x.cash!=null);
+    if(!priced.length){
+      const d0=(results[0]||{}).d;
+      if(d0&&d0.sources&&d0.sources.serpapi&&d0.sources.serpapi.configured===false&&d0.sources.kiwi&&d0.sources.kiwi.configured===false)
+        note.textContent="Live fares need SERPAPI_KEY (or KIWI_API_KEY) in Vercel — enter airfare manually.";
+      else note.textContent="No fares found — enter airfare manually.";
+      return;
+    }
+    // pick the airport with lowest NET cost: fare + round-trip drive to that airport
+    priced.forEach(x=>{x.net=x.cash+airportDriveFuel(x.code,gas,mpg);});
+    priced.sort((a,b)=>a.net-b.net);
+    const best=priced[0];
+    document.getElementById("depAirport").value=best.code;
+    document.getElementById("airfare").value=Math.round(best.cash);
+    const others=priced.slice(1).map(x=>`${x.code} ${money(x.cash)}`).join(" · ");
+    note.textContent=`Cheapest net: ${best.code} ${money(best.cash)}${airportDriveFuel(best.code,gas,mpg)>0?" +drive":""} for ${adults+kids}${others?` · vs ${others}`:""}`;
+    computeTrip();
+  }catch(e){note.textContent="Fare lookup error — enter airfare manually.";}
+}
+// ---- trip event calendar ----
+// Once cities (and optionally a start date) are chosen, stamp each stop with its date
+// window and surface that city's event-calendar links, plus a copy-to-clipboard request.
+function fmtD(dt){return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'});}
+function fmtRange(a,b){
+  return a.getMonth()===b.getMonth()
+    ? `${a.toLocaleDateString('en-US',{month:'short',day:'numeric'})}–${b.getDate()}`
+    : `${fmtD(a)} – ${fmtD(b)}`;
+}
+function copyText(msg){
+  return (async()=>{
+    try{await navigator.clipboard.writeText(msg);return true;}
+    catch(e){
+      const ta=document.createElement('textarea');ta.value=msg;ta.style.position='fixed';
+      ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+      let ok=false;try{ok=document.execCommand('copy');}catch(_){}
+      document.body.removeChild(ta);return ok;
+    }
+  })();
+}
+function renderTripEvents(){
+  const box=document.getElementById('tripEvents');
+  if(!itin.length){box.innerHTML='';return;}
+  const sv=document.getElementById('tripStart').value;
+  let start=null;
+  if(sv){const p=sv.split('-').map(Number);if(p[0])start=new Date(p[0],p[1]-1,p[2]);}
+  let cum=0;
+  const rows=itin.map(s=>{
+    const n=Math.max(0,s.nights);
+    let dateChip='',range='your trip dates',arrISO='',depISO='';
+    if(start){
+      const arr=new Date(start);arr.setDate(arr.getDate()+cum);
+      const dep=new Date(arr);dep.setDate(dep.getDate()+n);
+      range=fmtRange(arr,dep);
+      arrISO=isoDate(arr);depISO=isoDate(dep);
+      dateChip=`<span class="te-dates">${range}</span>`;
+    }
+    cum+=n;
+    const evs=EVENTS[s.city]||[];
+    const links=evs.length
+      ? evs.map(e=>`<a class="ev" href="${e.u}" target="_blank" rel="noopener" title="${e.d}">${e.n}</a>`).join('')
+      : `<span class="te-note">No saved links — use Copy events request.</span>`;
+    // baked event research — each item carries an ISO date `d`; past events auto-drop
+    // on every page load (client-side prune), mirroring the scheduled refresh's pruning.
+    const fe=TRIP_EVENTS[s.city];
+    let foundHtml='';
+    if(fe){
+      const now=new Date();
+      const todayISO=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const live=fe.items.filter(it=>!it.d||it.d>=todayISO);
+      const hidden=fe.items.length-live.length;
+      foundHtml=live.length
+        ? `<div class="te-found"><div class="te-found-head"><span>Events found for <b>${fe.window}</b></span>`
+            +`<span class="te-stamp">researched ${fe.foundNice}${hidden?` · ${hidden} past event${hidden>1?'s':''} hidden`:''}</span></div>`
+            +`<ul>${live.map(it=>`<li><b>${it.n}</b>${it.m?` — ${it.m}`:''}</li>`).join('')}</ul></div>`
+        : `<div class="te-found expired">Baked events for ${fe.window} have all passed — hit “Copy events request” to refresh them.</div>`;
+    }
+    const liveBtn=arrISO
+      ? `<button class="te-copy te-live-btn" data-city="${s.city}" data-start="${arrISO}" data-end="${depISO}">⚡ Load live events</button>`
+      : '';
+    return `<div class="te-stop"><div class="te-top"><span class="te-city">${s.city}</span>${dateChip}`
+      +`${liveBtn}<button class="te-copy" data-city="${s.city}" data-range="${range}">Copy events request</button></div>`
+      +`<div class="te-links">${links}</div>${foundHtml}<div class="te-live" data-city="${s.city}"></div></div>`;
+  }).join('');
+  const hint=start?'':`<p class="te-note" style="margin-bottom:12px">Set a <b>Trip start</b> date above to stamp each stop with its exact dates.</p>`;
+  box.innerHTML=`<div class="te-head">Event calendar for this trip</div>${hint}${rows}`;
+  box.querySelectorAll('.te-copy:not(.te-live-btn)').forEach(b=>b.addEventListener('click',async()=>{
+    const c=b.dataset.city,r=b.dataset.range;
+    const msg=`Find family-friendly events in ${c} for ${r}. Check the event-calendar links for ${c} in my `
+      +`Family Adventure Atlas (the Time Out–style guide, the official CVB calendar, and the family-event sites) `
+      +`and summarize what's on for those dates for two girls (ages 5 & 9).`;
+    const ok=await copyText(msg);
+    showToast(ok
+      ?`Copied an events request for <b>${c}</b> (${r}) — paste it to Claude.`
+      :`Ask Claude: <b>“What events are on in ${c} for ${r}?”</b>`);
+  }));
+  box.querySelectorAll('.te-live-btn').forEach(b=>b.addEventListener('click',()=>loadLiveEvents(b)));
+}
+// Pads a Date to YYYY-MM-DD for the /api/events call.
+function isoDate(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+// Calls the serverless events function and renders results under the stop.
+// On any failure it degrades gracefully to the Copy-events-request workaround,
+// so the atlas keeps working even offline or with the API down.
+async function loadLiveEvents(btn){
+  const c=btn.dataset.city,start=btn.dataset.start,end=btn.dataset.end;
+  const stop=btn.closest('.te-stop');
+  const out=stop?stop.querySelector('.te-live'):null;
+  if(!out)return;
+  const label=btn.textContent;
+  btn.disabled=true;btn.textContent='Searching…';
+  out.innerHTML=`<div class="te-note">Searching official calendars for <b>${c}</b>…</div>`;
+  try{
+    const r=await atlasFetch(`/api/atlas/events?city=${encodeURIComponent(c)}&start=${start}&end=${end}`);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const data=await r.json();
+    const items=Array.isArray(data.items)?data.items:[];
+    if(!items.length){
+      out.innerHTML=`<div class="te-found"><div class="te-found-head"><span>No dated events found for <b>${c}</b></span>`
+        +`<span class="te-stamp">searched live ${data.researchedAt||''}</span></div>`
+        +`<div class="te-note">Nothing solid landed in your window — try the evergreen calendar links above.</div></div>`;
+    }else{
+      out.innerHTML=`<div class="te-found"><div class="te-found-head"><span>⚡ Live events for <b>${c}</b></span>`
+        +`<span class="te-stamp">searched live ${data.researchedAt||''}</span></div>`
+        +`<ul>${items.map(it=>{
+            const name=it.u?`<a href="${it.u}" target="_blank" rel="noopener">${it.n}</a>`:it.n;
+            return `<li><b>${name}</b>${it.m?` — ${it.m}`:''}</li>`;
+          }).join('')}</ul></div>`;
+    }
+    btn.textContent='↻ Refresh live events';
+  }catch(e){
+    out.innerHTML=`<div class="te-found expired">Couldn't reach the live events service. Use `
+      +`<b>“Copy events request”</b> above and paste it to Claude instead.</div>`;
+    btn.textContent=label;
+  }finally{
+    btn.disabled=false;
+  }
+}
+document.getElementById("tripStart").addEventListener("input",renderTripEvents);
+["gas","mpg","food","hotel","nights","buffer"].forEach(id=>
+  document.getElementById(id).addEventListener("input",recompute));
+["carRate","localMi","adults","kids","airfare"].forEach(id=>
+  document.getElementById(id).addEventListener("input",computeTrip));
+document.getElementById("depAirport").addEventListener("change",computeTrip);
+document.getElementById("fetchFare").addEventListener("click",fetchAirfare);
+
+document.getElementById("recommendBtn").addEventListener("click",()=>{
+  if(itin.length<2){showToast("Add at least two stops, then I'll find the shortest loop.");return;}
+  const before=tripMiles();recommend();const after=tripMiles();
+  const saved=before-after;
+  showToast(saved>5
+    ?`Reordered to the shortest loop — about <b>${Math.round(after).toLocaleString()} mi</b> (saved ~${Math.round(saved)} mi).`
+    :`Already the shortest loop — about <b>${Math.round(after).toLocaleString()} mi</b>.`);
+});
+document.getElementById("clearTrip").addEventListener("click",()=>{itin=[];renderItin();});
+
+document.getElementById("tfGo").addEventListener("click",findTrips);
+document.getElementById("tfResults").addEventListener("click",e=>{
+  const btn=e.target.closest("[data-tf]");if(!btn)return;
+  const cand=tfCandidates[+btn.dataset.tf];if(!cand)return;
+  itin=cand.route.map((c,i)=>({city:c,nights:cand.nightsArr[i]}));
+  renderItin();
+  const target=document.getElementById("tripSummary")||document.getElementById("itinerary");
+  if(target)target.scrollIntoView({behavior:"smooth",block:"start"});
+});
+
+let PLAYBOOKS=[
+  {"city":"Atlanta","pitch":"Your closest big-city hit: a top-5 world aquarium, a gorilla-packed zoo, and the world's largest dinosaur all inside two hours of the driveway.","perfectDay":[{"when":"Morning","stop":"Georgia Aquarium","note":"Rope-drop it — whale sharks and belugas first while both girls are fresh; buy timed tickets in advance."},{"when":"Midday","stop":"World of Coca-Cola","note":"Right next door in Pemberton Place — the Scent Discovery and mix-your-own tasting room is a quick, low-energy pairing after the aquarium."},{"when":"Afternoon","stop":"Zoo Atlanta","note":"Save the big gorilla troop and pandas for after a car-ride reset; walkable and shaded."},{"when":"Evening","stop":"BeltLine: Ponce City + Krog St Markets","note":"Flat stroller path plus food halls — let the 9-yo pick ramen, the 5-yo gets Jeni's, everyone unwinds."}],"signature":"Georgia Aquarium","rainyDay":"Fernbank Museum","foodStop":"The food stalls inside Ponce City Market's Central Food Hall — something for every picky palate under one roof.","kidTip":"Do the aquarium at opening before the school-group crush, then use the midday Coca-Cola stop as an air-conditioned buffer so the 5-yo can recharge before the zoo's afternoon walking.","stayArea":"Midtown — walkable to the aquarium/Coke, near the BeltLine, easy highway access to the zoo."},
+  {"city":"Chattanooga","pitch":"A two-building aquarium, an underground waterfall, and a gnome-filled clifftop garden make this the most kid-dense weekend on any Hensel corridor.","perfectDay":[{"when":"Morning","stop":"Tennessee Aquarium — River Journey","note":"Start in the freshwater building with otters and the walk-through forest; buy the combo ticket so you can do both."},{"when":"Midday","stop":"Tennessee Aquarium — Ocean Journey","note":"Sharks overhead and penguins — the second building is steps away across the plaza."},{"when":"Afternoon","stop":"Rock City Gardens","note":"Swinging bridge and the glowing Fairyland Caverns gnomes delight the 5-yo; the older girl loves the See-7-States overlook."},{"when":"Evening","stop":"Coolidge Park","note":"Free splash fountains and a 100-year-old carousel to burn off the last of the day right on the river."}],"signature":"Tennessee Aquarium (both buildings)","rainyDay":"Creative Discovery Museum","foodStop":"Clumpies Ice Cream in the Bluff View Art District — river views and a walkable little arts pocket.","kidTip":"Both aquarium buildings in one morning is a lot of standing — bring the stroller for the 5-yo and plan Rock City for after a lunch reset, since its clifftop paths need fresh legs.","stayArea":"Downtown near the riverfront — walk to the aquarium, Walnut Street Bridge, and Coolidge Park."},
+  {"city":"Nashville","pitch":"A kangaroo walk-through zoo with a giant wooden fortress of a playground, plus splash pads and a hands-on science center, keep Music City firmly kid-first.","perfectDay":[{"when":"Morning","stop":"Nashville Zoo at Grassmere","note":"Walk-through kangaroo yard and one of the largest wooden playgrounds in the US — get there at open before the heat."},{"when":"Midday","stop":"Adventure Science Center","note":"Hands-on physics and space floors plus a planetarium — a cool, dim reset for early afternoon."},{"when":"Afternoon","stop":"Cheekwood Estate & Gardens","note":"The storybook TRAINS! trail and children's garden are perfect wander-pace for both ages."},{"when":"Evening","stop":"Bicentennial Mall + Farmers' Market","note":"Free park to run, next to a food hall with 20+ international eateries for an easy dinner."}],"signature":"Nashville Zoo at Grassmere","rainyDay":"Adventure Science Center","foodStop":"Nashville Farmers' Market food hall beside Bicentennial Mall — global stalls, casual, kid-paced.","kidTip":"Note the Parthenon is closed for HVAC through mid-July '26 — skip it and hit the free splash pads at Two Rivers or Shelby to wear the 5-yo out on a hot afternoon.","stayArea":"Near Opryland/East Nashville if you want SoundWaves water park access, or downtown-adjacent for the science center and parks."},
+  {"city":"Huntsville","pitch":"The single best science-and-engineering day within driving range — real Saturn V rockets for the 4th-grader, a hands-on natural-science museum with splash play for the Kindergartner.","perfectDay":[{"when":"Morning","stop":"U.S. Space & Rocket Center / Space Camp","note":"Stand under the Saturn V first thing; the older girl can do simulators while the 5-yo does the kid areas."},{"when":"Midday","stop":"INTUITIVE Planetarium","note":"An easy air-conditioned full-dome show on-site — perfect midday cool-down between rocket exploring."},{"when":"Afternoon","stop":"Cook Museum of Natural Science","note":"Worth the 25-min hop to Decatur — live saltwater tanks, jellyfish, gators, and splash play that levels the ages."},{"when":"Evening","stop":"Lowe Mill ARTS","note":"200+ working-artist studios plus quirky food — a browse-and-snack wind-down."}],"signature":"U.S. Space & Rocket Center","rainyDay":"Cook Museum of Natural Science","foodStop":"Campus No. 805 — an old high school turned food/arcade/brewery complex, room for kids to roam.","kidTip":"The Rocket Center is huge and mostly outdoors — do rockets in the cool morning, bank the planetarium for the hot midday slump, and split the Cook Museum to a second half-day if the 5-yo fades.","stayArea":"Cummings Research Park / near the Space Center for shortest morning drive."},
+  {"city":"Knoxville","pitch":"An underrated water-and-nature hub where a splash-pad safari zoo, a turquoise quarry swimming hole, and the Smokies 45 minutes on all share one base.","perfectDay":[{"when":"Morning","stop":"Zoo Knoxville","note":"Gorillas, elephants, and a safari splash pad — go early so the 5-yo hits the water when it's warm enough."},{"when":"Midday","stop":"Ijams Nature Center & Meads Quarry","note":"Nature playscape and live animals; the 9-yo can kayak or paddleboard the quarry lake."},{"when":"Afternoon","stop":"World's Fair Park & Sunsphere","note":"The city's biggest splash pad plus the 360° Sunsphere deck — free and central."},{"when":"Evening","stop":"Market Square","note":"Pedestrian square with restaurants, splash fountains, and live music for dinner."}],"signature":"Ijams Nature Center & Meads Quarry","rainyDay":"Muse Knoxville","foodStop":"Market Square's patios — walkable, casual, with fountains for the kids between courses.","kidTip":"Pack swimsuits every day here — three of the four stops involve water. If you add the Smokies, do it as its own dawn-start day so the drive doesn't eat a hub afternoon.","stayArea":"Downtown near Market Square and World's Fair Park — walkable, central to the zoo and Ijams."},
+  {"city":"St. Louis","pitch":"A 600,000-sq-ft warehouse-turned-playground and a genuinely free world-class zoo make this the highest fun-per-dollar hub — just remember it only pencils out chained through Chattanooga and Nashville.","perfectDay":[{"when":"Morning","stop":"City Museum","note":"Plan 3-4 hours — caves, 30+ slides, rooftop madness; go at open before it packs and both girls have peak energy."},{"when":"Midday","stop":"Turtle Playground","note":"Free giant climbable turtles by City Museum's own creator, minutes away — pair them to cap the morning."},{"when":"Afternoon","stop":"Saint Louis Zoo","note":"Consistently a top US zoo and free admission; shady Forest Park setting for a calmer afternoon."},{"when":"Evening","stop":"Ted Drewes Frozen Custard","note":"The iconic Route 66 'concrete' — so thick they hand it to you upside-down."}],"signature":"City Museum","rainyDay":"Saint Louis Science Center","foodStop":"Ted Drewes Frozen Custard on Chippewa — a genuine St. Louis institution.","kidTip":"City Museum is physically demanding and easy to lose a 5-yo in — go right at opening, keep the crew together on the slides, and do the mellow free zoo afterward when everyone's spent. It's a 9.5h drive, so break it over Chattanooga and Nashville.","stayArea":"Central West End / near Forest Park — walkable to the free zoo, science center, and botanical garden."},
+  {"city":"Louisville","pitch":"Zip an underground cavern, walk 390-million-year-old fossil beds, and cross a bridge on foot into another state — Louisville is quietly stacked for curious kids.","perfectDay":[{"when":"Morning","stop":"Louisville Mega Cavern","note":"Underground tram is all-ages; the 9-yo (age 7+) can do the underground zipline while the 5-yo rides along."},{"when":"Midday","stop":"Kentucky Science Center","note":"Three floors of hands-on plus a toddler zone splits the ages perfectly on a hot afternoon."},{"when":"Afternoon","stop":"Falls of the Ohio State Park","note":"Walk exposed fossil beds and do the Fossil Challenge scavenger hunt — hands-on wonder for both."},{"when":"Evening","stop":"Waterfront Park + Big Four Bridge","note":"Free playgrounds and splash pad, then walk the bridge into Indiana at sunset."}],"signature":"Louisville Mega Cavern","rainyDay":"Kentucky Science Center","foodStop":"NuLu District — walkable blocks of interesting eats plus an indoor food hall.","kidTip":"The cavern stays a cool 58° year-round, so bring light jackets even in July; save the outdoor Falls fossil beds for late afternoon when the river rocks aren't blazing hot.","stayArea":"Downtown/NuLu — walkable to the waterfront, close to the cavern and science center."},
+  {"city":"Cincinnati","pitch":"Fiona the hippo, a rope bridge over live sharks, and a top-10 children's museum in an Art Deco train station — a compact riverfront hub that punches way up.","perfectDay":[{"when":"Morning","stop":"Cincinnati Zoo","note":"Meet Fiona the hippo early; the botanical setting is one of the best-ranked in the country."},{"when":"Midday","stop":"Newport Aquarium","note":"Cross the river to walk the 75-ft Shark Bridge rope walk over sharks — thrilling for the 9-yo, penguins for the 5-yo."},{"when":"Afternoon","stop":"Smale Riverfront Park","note":"Free fountains, an adventure playground, and a carousel to burn energy riverside."},{"when":"Evening","stop":"Newport on the Levee / Box Park","note":"Open-air shipping-container food park right by the aquarium — easy dinner."}],"signature":"Newport Aquarium","rainyDay":"Cincinnati Museum Center","foodStop":"Findlay Market in Over-the-Rhine — Ohio's oldest market, reachable on the free streetcar.","kidTip":"The zoo and aquarium sit across the river from each other; do the zoo at open before the heat, then the aquarium is indoors and cool for the afternoon slump. Kids under 13 are free at the American Sign Museum if you need a Saturday rainy pivot.","stayArea":"Downtown/Over-the-Rhine or across the river in Newport — both put the aquarium and food parks in walking range."},
+  {"city":"Columbus","pitch":"A giant hands-on science center, Jack Hanna's world-class zoo, and an open-air safari among rhinos and giraffes — Columbus out-punches the bigger Midwest hubs for this family's themes.","perfectDay":[{"when":"Morning","stop":"Columbus Zoo and Aquarium","note":"Jack Hanna's zoo plus a manatee coast and aquarium — arrive at open to beat both crowds and heat."},{"when":"Midday","stop":"Zoombezi Bay","note":"The award-winning water park is right at the zoo (summer) — wave pool and slides for a hot midday."},{"when":"Afternoon","stop":"COSI","note":"300k sq ft of hands-on science and a T. rex dino gallery — an indoor, energy-flexible afternoon."},{"when":"Evening","stop":"North Market","note":"Historic 1876 food hall where Jeni's Ice Cream was born — a vendor for every taste."}],"signature":"Columbus Zoo and Aquarium","rainyDay":"COSI","foodStop":"North Market — 35 vendors and the original Jeni's Ice Cream.","kidTip":"Zoo plus water park is a full sun-soaked day; combo-ticket them and rotate — animals early, water at midday peak heat. The Wilds safari is ~90 min out and must be booked ahead, so make it its own day, not a squeeze-in.","stayArea":"Downtown near the Scioto riverfront and North Market, or Powell/Dublin if you want to be next to the zoo."},
+  {"city":"Indianapolis","pitch":"The world's largest children's museum — with a real fossil lab and dinosaurs — anchors a hub of living history balloon rides and a dolphin-and-orangutan zoo.","perfectDay":[{"when":"Morning","stop":"Children's Museum of Indianapolis","note":"World's largest — hit Dinosphere and the real fossil labs at open; easily a half-day for both ages."},{"when":"Midday","stop":"Garfield Park Conservatory","note":"A calm tropical glasshouse with a Children's Garden — a green, low-key midday breather."},{"when":"Afternoon","stop":"Indianapolis Zoo","note":"A rare zoo/aquarium/botanical combo with dolphins and orangutans; late-day when it cools."},{"when":"Evening","stop":"Canal Walk & White River SP","note":"Pedal boats and the Colts Canal Playground on a flat waterside loop to end the day."}],"signature":"Children's Museum of Indianapolis","rainyDay":"Children's Museum of Indianapolis","foodStop":"Mass Ave — walkable dining strip where kids pour custom candles at Penn & Beech between courses.","kidTip":"The children's museum is enormous; plan a whole morning and don't try to also do the zoo the same block of time. If the 5-yo needs a nap, the conservatory is a quiet, stroller-friendly place to let her ride the stroller while the 9-yo explores.","stayArea":"Downtown near the Canal Walk / White River State Park — central to the zoo and walkable to Mass Ave."},
+  {"city":"Washington DC","pitch":"An entire city of free, hands-on wonder — touch a moon rock, meet pandas, and stand under a dinosaur without paying admission anywhere.","perfectDay":[{"when":"Morning","stop":"Nat'l Air & Space Museum","note":"Newly renovated galleries; touch a moon rock. Free but reserve a timed entry the moment they release."},{"when":"Midday","stop":"Nat'l Museum of Natural History","note":"Dinosaur hall plus a live Insect Zoo and Butterfly Pavilion — hands-on and steps up the Mall."},{"when":"Afternoon","stop":"Smithsonian's National Zoo","note":"Free with a timed ticket — pandas are back and there's a new elephant calf."},{"when":"Evening","stop":"Gravelly Point Park","note":"Lie on the lawn while jets roar overhead landing at Reagan — pure, free delight to end the day."}],"signature":"Nat'l Air & Space Museum","rainyDay":"Nat'l Museum of Natural History","foodStop":"A picnic grabbed near the Mall, or the food halls at nearby markets — museum cafeterias are pricey and slow with kids.","kidTip":"The Mall is deceptively huge — bring the stroller and pick just TWO museums a day, or you'll melt down both girls. Nab free timed-entry tickets for Air & Space and the zoo weeks ahead.","stayArea":"Near a Metro stop (e.g. around the Mall/Penn Quarter or a quieter Arlington base) so you're not fighting downtown parking."},
+  {"city":"Williamsburg","pitch":"Costumed 18th-century streets, a Sesame Street theme park for the little one, and a Virginia's-largest water park — living history and pure play sharing one compact base.","perfectDay":[{"when":"Morning","stop":"Colonial Williamsburg","note":"Costumed trades, carriage rides, and a boxwood maze; go early before midday heat on the open streets. Kids often free in summer."},{"when":"Midday","stop":"Merchants Square dining","note":"Walkable brick district right beside the historic area — bistro to tacos plus ice cream for a reset."},{"when":"Afternoon","stop":"Busch Gardens Williamsburg","note":"Land of the Dragons and Sesame Street for the 5-yo, coasters for the 9-yo; ages 3-5 ride free."},{"when":"Evening","stop":"Yorktown Beach & Riverwalk","note":"A gentle river beach and walkable waterfront with a free trolley to wind down."}],"signature":"Colonial Williamsburg","rainyDay":"Virginia Living Museum","foodStop":"Merchants Square — a walkable dining district beside Colonial Williamsburg with ice cream at the end.","kidTip":"Don't try Colonial Williamsburg and Busch Gardens the same day; do history in the cool morning and save a full separate day for the theme park. Great Wolf Lodge is the all-weather bailout if a summer storm rolls in.","stayArea":"Near Colonial Williamsburg / Merchants Square — central to the historic area, Busch Gardens, and Water Country."},
+  {"city":"Pittsburgh","pitch":"A five-floor science center with a boardable submarine, the #1-voted children's museum, and the original Mister Rogers trolley — a river city built for tinkering kids.","perfectDay":[{"when":"Morning","stop":"Carnegie / Kamin Science Center","note":"Five floors of 100+ hands-on exhibits plus a real submarine kids can board — start when doors open."},{"when":"Midday","stop":"Children's Museum of Pittsburgh","note":"Voted #1 US children's museum ('26) — open-ended, tinker-heavy play right across the North Side."},{"when":"Afternoon","stop":"Duquesne Incline","note":"Ride the 1877 cable railway up Mt. Washington for the iconic three-rivers view — a quick thrill both love."},{"when":"Evening","stop":"Randyland","note":"A free, joyfully weird folk-art courtyard on the North Side to explore before dinner."}],"signature":"Children's Museum of Pittsburgh","rainyDay":"Carnegie Museum of Natural History","foodStop":"A stop near the North Shore or the Strip District markets — casual, plentiful, kid-friendly.","kidTip":"The science center and children's museum are both on the North Side within walking distance — pair them and skip the car. Idlewild & SoakZone (best kids' park in the world, with the Mister Rogers trolley) is ~50 min out and deserves its own day.","stayArea":"North Shore — walkable to the science center, children's museum, aviary, and Randyland."},
+  {"city":"Philadelphia","pitch":"A walk-through Giant Heart, a touch-everything children's museum, and the birthplace of American democracy — but at 9.5h, treat it as a fly-not-drive trip or a DC add-on.","perfectDay":[{"when":"Morning","stop":"The Franklin Institute","note":"Three floors of hands-on science and the walk-through two-story Giant Heart — a classic for both ages."},{"when":"Midday","stop":"Reading Terminal Market","note":"Historic covered market — Amish pretzels and dozens of vendors for a pick-your-own lunch."},{"when":"Afternoon","stop":"Philadelphia Zoo","note":"America's first zoo, with Zoo360 mesh trails that let animals roam overhead — magic for kids."},{"when":"Evening","stop":"Franklin Square","note":"Carousel, mini-golf, and a fountain show — a free, relaxed cap to a big day."}],"signature":"The Franklin Institute","rainyDay":"Please Touch Museum","foodStop":"Reading Terminal Market — Amish pretzels, cheesesteaks, and endless vendor variety.","kidTip":"For the 5-yo, the Please Touch Museum is the best single stop in the city — build a day around it. Given the 9.5h drive, seriously consider flying or bolting this onto a DC trip rather than a standalone quarterly.","stayArea":"Center City near Logan Square — walkable to the Franklin Institute, Reading Terminal, and historic sites."},
+  {"city":"Savannah","pitch":"Touch a sea turtle, spot wild dolphins, and climb Georgia's oldest lighthouse — a Lowcountry hub where every stop mixes water, animals, and easy walkability.","perfectDay":[{"when":"Morning","stop":"Tybee Island Marine Science Center","note":"Touch tanks, live sea turtles, and a pirate-ship playground right on the sand — great first stop on Tybee."},{"when":"Midday","stop":"Tybee Island Beach & Pier","note":"Wide, gentle-surf beach for shelling and splashing — stay out on the island for the midday hours."},{"when":"Afternoon","stop":"Dolphin Adventure Boat Tour","note":"A small-boat cruise to spot wild bottlenose dolphins — the afternoon light is good for it."},{"when":"Evening","stop":"Forsyth Park","note":"The iconic fountain, two playgrounds, and summer sprinklers back in town for a wind-down."}],"signature":"Tybee Island Marine Science Center","rainyDay":"Savannah Children's Museum","foodStop":"Leopold's Ice Cream — a 1919 soda fountain that's a genuine local landmark, not a tourist trap.","kidTip":"Tybee is 20 min from downtown, so batch the island stops together in one day rather than driving back and forth. Bring sun cover for the open dolphin boat and time it to avoid the harshest midday sun.","stayArea":"Historic District near Forsyth Park for walkability, or on Tybee Island itself if you want beach-and-turtle days."},
+  {"city":"Charleston","pitch":"A sea-turtle hospital inside the aquarium, dolphins working a marsh creek, and the calmest family beach on the coast — Charleston earns a Tier-1 spot for water-and-animal kids.","perfectDay":[{"when":"Morning","stop":"South Carolina Aquarium","note":"Touch tank, the 385k-gal Great Ocean Tank, and a live Sea Turtle Recovery hospital — go at open on the harbor."},{"when":"Midday","stop":"Shem Creek Park & Boardwalk","note":"A marsh boardwalk where dolphins work the creek beside shrimp boats — walkable and often free."},{"when":"Afternoon","stop":"Isle of Palms","note":"The most family-friendly beach — wide sand, calmer waves, lifeguards for the afternoon."},{"when":"Evening","stop":"Joe Riley Waterfront Park","note":"The Pineapple Fountain doubles as a free downtown splash pad to rinse off the day."}],"signature":"South Carolina Aquarium","rainyDay":"Children's Museum of the Lowcountry","foodStop":"A casual seafood spot on Shem Creek — dolphin-watching from the deck while you eat.","kidTip":"Beach parking at Isle of Palms fills early and costs $15-25 — arrive before 10 or go late afternoon. The Center for Birds of Prey flight demo (in Awendaw) is jaw-dropping but a 40-min drive, so slot it as its own morning.","stayArea":"Downtown near Waterfront Park for walkability, or Mount Pleasant to be between Shem Creek and the Isle of Palms beaches."},
+  {"city":"St. Augustine","pitch":"America's oldest city stacks a zip line over live crocs, a climb-the-ramparts Spanish fort, and free ranger-led fossil shark-tooth hunts into one salt-air weekend.","perfectDay":[{"when":"Morning","stop":"St. Augustine Alligator Farm","note":"Hundreds of gators, a bird rookery, and lemurs; the 9-yo can zip line over live crocs while the 5-yo watches."},{"when":"Midday","stop":"Castillo de San Marcos","note":"Kids climb the ramparts of America's oldest masonry fort; time it for a cannon demo. Free under 16."},{"when":"Afternoon","stop":"Anastasia State Park","note":"1,600 acres of uncrowded beach plus a calm tidal lagoon for first-time kayaking — cool off here."},{"when":"Evening","stop":"Colonial Quarter","note":"Living-history village with blacksmiths and a climbable watchtower before dinner in the old town."}],"signature":"St. Augustine Alligator Farm","rainyDay":"Pirate & Treasure Museum","foodStop":"Whetstone Chocolates factory tour — a 45-minute tasting with about six free samples doubles as a sweet-tooth stop.","kidTip":"The historic district is walkable but sun-exposed and cobblestoned — do the fort and Colonial Quarter in cooler hours and bank the shaded Alligator Farm and beach for peak midday. Fossil shark-tooth walks depend on low tide, so check the ranger schedule.","stayArea":"Historic downtown near the fort for walkability, or Anastasia Island to be next to the beach and state park."},
+  {"city":"Orlando","pitch":"Skip the mega-parks and play to your family's water-and-animal streak: a ray-tank slide, a gator preserve, and wild manatees in a spring 40 minutes off the tourist grid.","perfectDay":[{"when":"Morning","stop":"Aquatica","note":"The animal-lover's water park — a slide passes right through a ray tank; all-ages and gentler than the mega-parks. (Check: Volcano Bay is closed Oct 26 '26–Mar 24 '27.)"},{"when":"Midday","stop":"LEGOLAND Florida + Water Park","note":"Rides scaled exactly to ages 2-10 — nobody ages out, nobody's scared. A calmer alternative day if you want dry rides."},{"when":"Afternoon","stop":"Gatorland","note":"The anti-mega-park — a 110-acre gator preserve with boardwalks and zip lines, easy afternoon pace."},{"when":"Evening","stop":"Blue Spring State Park","note":"In winter (mid-Nov–March) hundreds of wild manatees huddle here; boardwalk viewing 40 min off the grid."}],"signature":"Discovery Cove","rainyDay":"LEGOLAND Florida (indoor build zones and rides run rain or shine)","foodStop":"Skip the park food traps once a day — grab a casual meal near your resort area to reset budgets and moods.","kidTip":"Discovery Cove's dolphin swim is 6+, so the 5-yo can't do that specific activity — but the reef snorkel, aviary, and beaches work for her. Pick one park a day and start at rope drop; Florida afternoon storms make water parks a morning game.","stayArea":"Near the resort corridor (International Drive area) for water-park access, or DeLand-adjacent if you're prioritizing the Blue Spring manatees."},
+  {"city":"Tampa / St. Pete","pitch":"A brand-new three-floor aquarium with a Gulf habitat swimming overhead, a rescue-dolphin hospital, and a century-old flamingo garden — Bay-area marine wonder for both girls.","perfectDay":[{"when":"Morning","stop":"Mote SEA","note":"The brand-new ('25) aquarium with a 400k-gal Gulf habitat overhead — go to UTC, NOT the closed old City Island site."},{"when":"Midday","stop":"The Florida Aquarium","note":"Downtown and hands-on; pairs perfectly with the Riverwalk if you want a second marine stop."},{"when":"Afternoon","stop":"Sunken Gardens","note":"A 100-year-old sunken tropical garden with flamingos in walkable St. Pete — a calm, shaded afternoon."},{"when":"Evening","stop":"Great Explorations","note":"Hands-on and 'designed for 10 and under' — an easy energy-burner near Sunken Gardens before dinner."}],"signature":"Mote SEA","rainyDay":"Glazer Children's Museum","foodStop":"A casual spot along the Tampa Riverwalk near the Florida Aquarium and Glazer museum.","kidTip":"Double-check you're routing to Mote SEA's new UTC location, not the old shuttered aquarium. Busch Gardens is a full separate day — combine it with an animal focus, and hit coasters early before the older girl tires and the sun peaks.","stayArea":"St. Pete for the walkable Sunken Gardens/Great Explorations cluster, or downtown Tampa near the Riverwalk aquarium."},
+  {"city":"Nature Coast (Crystal River)","pitch":"The only place in America you can legally swim with wild manatees, plus a real underwater mermaid show — Old Florida's spring country delivers water and animals in one shot.","perfectDay":[{"when":"Morning","stop":"Swim with Manatees — Three Sisters Springs","note":"The only legal wild-manatee swim in the US; book an early guided tour (Nov 15–Mar 31) when the water's calmest."},{"when":"Midday","stop":"Ellie Schiller Homosassa Springs","note":"Walk underwater into the 'Fish Bowl' for face-to-glass manatees year-round plus a wildlife boardwalk — the off-season backup."},{"when":"Afternoon","stop":"Weeki Wachee Springs","note":"The legendary underwater mermaid show plus Buccaneer Bay spring slides (summer) for the girls to cool off."},{"when":"Evening","stop":"Giraffe Ranch","note":"Feed giraffes from a safari truck on a 47-acre preserve — reservation-only, a memorable wind-down if booked ahead."}],"signature":"Swim with Manatees — Three Sisters Springs","rainyDay":"Ellie Schiller Homosassa Springs (the underwater Fish Bowl is a covered, all-weather manatee view)","foodStop":"A casual seafood or springs-town cafe in Crystal River or Homosassa — the Nature Coast is low-key and local.","kidTip":"The manatee swim runs only Nov 15–Mar 31 and involves cold spring water — kids need wetsuits (provided) and comfort in the water; if you're visiting off-season or the 5-yo balks, the Homosassa Fish Bowl gives face-to-glass manatees any time. Devil's Den snorkel is 6+ and for strong swimmers only.","stayArea":"Crystal River / Homosassa for the manatee springs, or split toward Weeki Wachee if the mermaid show and summer slides are the priority."},
+  {"city":"Charlotte","pitch":"Charlotte hands this family a whitewater raft ride, eagles at eye level, gold to pan, and a two-story science rainforest — all an easy 1.5-hour hop from the driveway.","perfectDay":[{"when":"Morning","stop":"U.S. National Whitewater Center","note":"Arrive at opening while it's cool; free trails first, then a guided family raft trip."},{"when":"Midday","stop":"U.S. National Whitewater Center","note":"Lunch riverside at the Center's grill so nobody loses momentum."},{"when":"Afternoon","stop":"Daniel Stowe Botanical Garden","note":"Shady paths and a fountain the 5-yo can splash in, ~20 min west in Belmont."},{"when":"Evening","stop":"Freedom Park & Little Sugar Creek Greenway","note":"Feed the ducks and burn off energy on the greenway loop before dinner."}],"signature":"U.S. National Whitewater Center","rainyDay":"Discovery Place Science","foodStop":"Amélie's French Bakery in NoDa — a quirky 24-hour spot with kid-loved macarons and hot chocolate.","kidTip":"Pair one big-ticket morning attraction with a free greenway or playground each afternoon so the Kindergartner can decompress while the 9-yo keeps moving; the LYNX Blue Line light rail between Uptown and South End is itself a cheap novelty ride.","stayArea":"South End / Uptown — walkable, restaurant-dense, and on the LYNX Blue Line light rail."},
+  {"city":"Gatlinburg / Pigeon Forge","pitch":"A 2.25-hour drive drops this water-, animal- and wonder-loving family into a rare combo of world-class theme parks and the wild, salamander-filled heart of America's most-visited national park.","perfectDay":[{"when":"Morning","stop":"Cades Cove Loop","note":"Enter at dawn for the best shot at black bears and deer before crowds and heat build."},{"when":"Midday","stop":"Sugarlands Visitor Center & Salamander Creeks","note":"Cool off creekside on the flat Fighting Creek trail; grab Junior Ranger booklets for the girls."},{"when":"Afternoon","stop":"Ripley's Aquarium of the Smokies","note":"Beat afternoon storms indoors; the glass shark tunnel and stingray touch tank are AC-cooled hits."},{"when":"Evening","stop":"The Island in Pigeon Forge","note":"Free splash fountains let the 5-yo run wild while the family rides the Wheel at sunset and grabs dinner."}],"signature":"Dollywood","rainyDay":"WonderWorks","foodStop":"The Old Mill Restaurant in Pigeon Forge — Southern comfort plates beside a working 1830s gristmill.","kidTip":"Alternate one big-ticket park day with one low-key nature day so the Kindergartner doesn't melt down; carry water shoes for creek stops and pack the stroller for Dollywood's hills.","stayArea":"Base in Pigeon Forge — central to Dollywood, both water parks, and The Island, with more mid-range family hotels and a straight shot to the national park via Gatlinburg."},
+  {"city":"NC Triangle (Raleigh–Durham)","pitch":"An easy 3.5-hour hop where free world-class science and history museums stack up against lemurs, ballgames, and lake beaches — a wonder-per-dollar jackpot for a curious 5- and 9-year-old.","perfectDay":[{"when":"Morning","stop":"Museum of Life and Science","note":"Arrive at 10 open; ride the train to the bears and lemurs before the heat and crowds build."},{"when":"Midday","stop":"Sarah P. Duke Gardens","note":"Picnic and feed the koi; shady terraces give the little one a stroller-nap window."},{"when":"Afternoon","stop":"Duke Lemur Center","note":"Book a mid-afternoon tour weeks ahead — it's reservation-only and the marquee memory."},{"when":"Evening","stop":"Durham Bulls Baseball","note":"Dollar-dog dinner at the ballpark; leave after the fireworks or the 7th if bedtime looms."}],"signature":"Duke Lemur Center","rainyDay":"NC Museum of Natural Sciences","foodStop":"Food-truck lunch or Bull City pizza at Durham's American Tobacco Campus, steps from the ballpark and Life & Science.","kidTip":"Bank the free museums for flexible afternoons — a 5-yo fades by 2pm, so front-load the one timed, reservation-only stop (Lemur Center) and keep the rest walk-in.","stayArea":"Base in Durham: central to the Lemur Center, Life & Science, Duke Gardens, and the Bulls, with Chapel Hill 15 min west and Raleigh 25 min east."}
+];
+function renderPlaybooks(){
+  const g=document.getElementById('pbGrid');if(!g)return;
+  const row=(lab,val)=>`<div class="row"><span class="lab">${lab}</span><span class="val">${val}</span></div>`;
+  g.innerHTML=PLAYBOOKS.map(p=>{
+    const drive=(CITIES[p.city]&&CITIES[p.city].drive)||'';
+    const day=p.perfectDay.map(s=>`<li><span class="pb-when">${s.when}</span><div><div class="pb-stop">${s.stop}</div><div class="pb-note">${s.note}</div></div></li>`).join('');
+    return `<article class="pb">
+      <div class="pb-head"><h3>${p.city}</h3><span class="pb-drive">${drive}</span></div>
+      <p class="pb-pitch">${p.pitch}</p>
+      <ul class="pb-day">${day}</ul>
+      <div class="pb-meta">
+        ${row('Signature','<b>'+p.signature+'</b>')}
+        ${row('Rainy day',p.rainyDay)}
+        ${row('Eat',p.foodStop)}
+        ${row('Stay',p.stayArea)}
+        ${row('Kid tip',p.kidTip)}
+      </div>
+    </article>`;
+  }).join('');
+}
+
+// ---- render orchestration + backend hydration ----
+// renderAll() repaints every data-driven section from the current in-memory
+// data. It runs once at boot with the baked-in data (instant, offline-safe),
+// then again if the backend returns a fresh atlas.
+function renderAll(){
+  renderCorridors();
+  renderThemeChips();
+  renderLibrary();
+  renderQuickRoutes();
+  renderPlaybooks();
+  renderItin();
+  recompute();
+  apply();
+}
+// Sign-in comes from the Family Planner (same origin, same stored session).
+// Sends the planner's access token; on a 401 it refreshes once and retries.
+async function atlasFetch(url,opts){
+  const get=()=>{try{return JSON.parse(localStorage.getItem('fp_auth'))||null}catch{return null}};
+  const go=()=>{const s=get();const h=Object.assign({},opts&&opts.headers,s&&s.access_token?{Authorization:'Bearer '+s.access_token}:{});return fetch(url,Object.assign({},opts,{headers:h}))};
+  let r=await go();
+  if(r.status!==401)return r;
+  const s=get();
+  if(!s||!s.refresh_token)return r;
+  try{
+    const rr=await fetch('/api/auth/refresh',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({refresh_token:s.refresh_token})});
+    if(!rr.ok)return r;
+    localStorage.setItem('fp_auth',JSON.stringify(await rr.json()));
+  }catch{return r}
+  return go();
+}
+// Try to hydrate from the backend. Any failure (offline, non-200, bad/partial
+// JSON, {error}) leaves the baked-in data untouched so the page works as-is.
+async function hydrateFromApi(){
+  try{
+    const r=await atlasFetch('/api/atlas/content',{cache:'no-store'});
+    if(!r.ok)return;
+    const d=await r.json();
+    if(!d||d.error||!d.CITIES)return;
+    if(d.THEMES)THEMES=d.THEMES;
+    if(d.SPOKES)SPOKES=d.SPOKES;
+    if(d.CITIES)CITIES=d.CITIES;
+    if(d.COORDS)COORDS=d.COORDS;
+    if(d.HOTELS)HOTELS=d.HOTELS;
+    if(d.PRICE_DATES)PRICE_DATES=d.PRICE_DATES;
+    if(d.PRICES)PRICES=d.PRICES;
+    if(d.A)A=d.A;
+    if(d.PLAYBOOKS)PLAYBOOKS=d.PLAYBOOKS;
+    if(d.EVENTS)EVENTS=d.EVENTS;
+    if(d.TRIP_EVENTS)TRIP_EVENTS=d.TRIP_EVENTS;
+    if(d.PRESETS)PRESETS=d.PRESETS;
+    if(d.COR)COR=d.COR;
+    renderAll();
+    // update masthead stats from live data
+    const cc=document.getElementById('cityCount');
+    if(cc)cc.textContent=Object.keys(CITIES).filter(k=>!CITIES[k].isHome).length||23;
+    const tc=document.getElementById('themeCount');
+    if(tc)tc.textContent=Object.keys(THEMES).length||8;
+    const corc=document.getElementById('corridorCount');
+    if(corc&&COR)corc.textContent=COR.length||5;
+  }catch(e){/* keep baked-in data */}
+}
+
+renderAll();
+hydrateFromApi();
+
+// ---- nav active-state via IntersectionObserver ----
+(function(){
+  const links=document.querySelectorAll('.nav-link');
+  const ids=['network','budget','library','playbooks','strategy'];
+  const map={};ids.forEach(id=>{const a=document.querySelector(`.nav-link[href="#${id}"]`);if(a)map[id]=a;});
+  let active=null;
+  const io=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting&&e.intersectionRatio>=0.1){
+        const id=e.target.id;
+        if(active)active.classList.remove('active');
+        active=map[id];
+        if(active)active.classList.add('active');
+      }
+    });
+  },{rootMargin:'-44px 0px -60% 0px',threshold:0.1});
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)io.observe(el);});
+  // highlight the first link initially
+  if(map['network'])map['network'].classList.add('active');
+})();
+</script>
+
+</body>
+</html>
