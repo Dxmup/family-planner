@@ -837,19 +837,32 @@ let PLAYBOOKS=[
     return m;
   }
   // What the old computeTrip() did: stops = [{city, nights}].
-  function tripCost(stops) {
+  // Optional second argument `opts.hotelRates = {city: nightlyUsd}` overrides the nightly rate for
+  // those cities in this one call (a searched rate a user chose to use). Valid overrides (finite, > 0)
+  // win over researched and default rates and mark the stop `hotelOverride: true` (that key is only
+  // present on overridden stops). Called without opts, the result is identical to before.
+  function tripCost(stops, opts) {
     stops = stops || [];
+    var ov = (opts && opts.hotelRates) || null;
+    function ovRate(city) {
+      var v = ov && Object.prototype.hasOwnProperty.call(ov, city) ? parseFloat(ov[city]) : NaN;
+      return isFinite(v) && v > 0 ? v : null;
+    }
+    function rate(city) { var o = ovRate(city); return o != null ? o : hotelRate(city); }
     var s = settingsNow, gas = s.gas, mpg = s.mpg || 25, food = s.food, pct = s.buffer;
     var miles = tripMiles(stops.map(function (x) { return x.city; }));
     var fuel = miles / mpg * gas;
-    var lodge = stops.reduce(function (t, x) { return t + hotelRate(x.city) * x.nights; }, 0);
+    var lodge = stops.reduce(function (t, x) { return t + rate(x.city) * x.nights; }, 0);
     var totalNights = stops.reduce(function (t, x) { return t + x.nights; }, 0);
     var days = totalNights + 1, foodc = food * days;
     var sub = fuel + lodge + foodc, buf = sub * pct / 100, tot = sub + buf;
     return {
       stops: stops.map(function (x) {
-        return { city: x.city, nights: x.nights, hotelRate: hotelRate(x.city), lodge: hotelRate(x.city) * x.nights,
-                 hotelEstimated: data.HOTELS[x.city] == null };
+        var o = ovRate(x.city), r = o != null ? o : hotelRate(x.city);
+        var row = { city: x.city, nights: x.nights, hotelRate: r, lodge: r * x.nights,
+                    hotelEstimated: o != null ? false : data.HOTELS[x.city] == null };
+        if (o != null) row.hotelOverride = true;
+        return row;
       }),
       miles: miles, fuel: fuel, lodge: lodge, totalNights: totalNights, days: days, food: foodc,
       subtotal: sub, buffer: buf, pct: pct, total: tot, gas: gas, mpg: mpg
@@ -895,7 +908,7 @@ let PLAYBOOKS=[
   function flyCost(opts) {
     opts = opts || {};
     var s = settingsNow;
-    var o = opts.trip || tripCost(opts.stops || []);
+    var o = opts.trip || tripCost(opts.stops || [], { hotelRates: opts.hotelRates });
     var far = farthestStop(opts.stops || []);
     var dep = opts.dep || "GSP";
     var airfare = num(opts.airfare), carRate = s.carRate, localMi = s.localMi;
