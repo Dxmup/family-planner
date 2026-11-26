@@ -624,18 +624,19 @@ app.post('/api/meal-plans/:id/apply', async (req, res) => {
 });
 
 // ---------- Rewards ----------
-// Star balance = lifetime chore points + bonus points earned minus stars
-// spent on rewards. Unassigned/family chores and bonus points awarded with
+// Star balance = lifetime chore points + bonus points + points from finished
+// books (reading log) earned, minus stars spent on rewards. Unassigned/family chores and bonus points awarded with
 // no member_id all land in a shared family bucket, keyed here as 'family'
 // and returned to callers as member_id: null.
 
 async function fetchBalances(sb) {
-  const [{ data: comps, error: e1 }, { data: chores, error: e2 }, { data: reds, error: e3 }, { data: bonuses, error: e4 }] =
+  const [{ data: comps, error: e1 }, { data: chores, error: e2 }, { data: reds, error: e3 }, { data: bonuses, error: e4 }, books] =
     await Promise.all([
       sb.from('chore_completions').select('chore_id'),
       sb.from('chores').select('id,member_id,points'),
       sb.from('redemptions').select('member_id,cost'),
       sb.from('bonus_points').select('member_id,points'),
+      fetchReadingPoints(sb),   // finished books from the reading log
     ]);
   if (e1 || e2 || e3 || e4) throw (e1 || e2 || e3 || e4);
   const byId = Object.fromEntries((chores || []).map(c => [c.id, c]));
@@ -646,6 +647,7 @@ async function fetchBalances(sb) {
     if (c) earned[key(c.member_id)] = (earned[key(c.member_id)] || 0) + c.points;
   }
   for (const b of bonuses || []) earned[key(b.member_id)] = (earned[key(b.member_id)] || 0) + b.points;
+  for (const b of books) earned[key(b.member_id)] = (earned[key(b.member_id)] || 0) + b.points;
   for (const r of reds || []) spent[key(r.member_id)] = (spent[key(r.member_id)] || 0) + r.cost;
   const ids = new Set([...Object.keys(earned), ...Object.keys(spent)]);
   return [...ids].map(id => ({
@@ -718,6 +720,237 @@ app.post('/api/rewards/:id/redeem', async (req, res) => {
   }).select().single();
   if (sendErr(res, error)) return;
   ok(res, data);
+});
+
+// ---------- Reading log ----------
+// Kids' library and owned books. A parent scans an ISBN, the lookup fills in
+// the details, and each selected child gets a shelf entry ("reading").
+// Finishing a book (allowed for any signed-in account, so the wall tablet
+// works) earns the entry's points; those count toward the star balance via
+// fetchReadingPoints() below, so no bonus_points rows are needed.
+
+const { BOOK_POINTS, pointsForPages, normalizeIsbn, lookupBookOnline } = require('../lib/books');
+
+const LIBRARY_LOAN_DAYS = 21;
+const BOOK_COLUMNS = 'isbn,title,author,cover_url,pages';
+
+const isoDate = (d) => d.toISOString().slice(0, 10);
+const addDaysIso = (iso, n) => isoDate(new Date(new Date(iso + 'T00:00:00Z').getTime() + n * 86400000));
+const posInt = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
+
+// A real calendar date, not just the right shape (rejects 2026-02-31).
+const validDate = (s) => DATE_RE.test(s || '') && isoDate(new Date(s + 'T00:00:00Z')) === s;
+
+// The reading_log table may not exist yet (migration not applied, or rolled
+// back). Star totals must keep working in that case, so treat it as "no books".
+const missingTable = (e) => e && (e.code === '42P01' || e.code === 'PGRST205' ||
+  /does not exist|schema cache/i.test(e.message || ''));
+
+// Points from finished books, one row per finished entry: [{ member_id, points }].
+// Pass { start, end } (YYYY-MM-DD) to limit to books finished in that range.
+async function fetchReadingPoints(sb, { start, end } = {}) {
+  let q = sb.from('reading_log').select('member_id,points').eq('status', 'finished');
+  if (start) q = q.gte('finished_on', start);
+  if (end) q = q.lte('finished_on', end);
+  const { data, error } = await q;
+  if (error) {
+    if (missingTable(error)) return [];
+    throw error;
+  }
+  return data || [];
+}
+
+// Flatten a reading_log row joined with its book.
+const flattenLog = (r) => {
+  const { books: b, ...row } = r;
+  return { ...row, title: b?.title ?? null, author: b?.author ?? null,
+           cover_url: b?.cover_url ?? null, pages: b?.pages ?? null };
+};
+
+// Book details for an ISBN: the cached row if we have one, otherwise a
+// lookup on Open Library, then Google Books. Nothing is saved here; the book
+// row is written when the parent saves the entry.
+app.get('/api/books/lookup', async (req, res) => {
+  const isbn = normalizeIsbn(req.query.isbn);
+  if (!isbn) return bad(res, 'That is not a valid book ISBN (ISBN-13 starting 978 or 979, or ISBN-10)');
+  const { data: cached, error } = await req.sb.from('books').select(BOOK_COLUMNS).eq('isbn', isbn).maybeSingle();
+  // A missing table just means nothing is cached yet; other errors (auth) are real.
+  if (error && !missingTable(error)) return sendErr(res, error);
+  if (cached) {
+    return ok(res, { found: true, source: 'cache', isbn, book: cached, suggested_points: pointsForPages(cached.pages) });
+  }
+  const { book, source, failed } = await lookupBookOnline(isbn);
+  if (!book) {
+    return ok(res, {
+      found: false, source: null, isbn, book: { isbn, title: '', author: null, cover_url: null, pages: null },
+      lookup_failed: !!failed, suggested_points: BOOK_POINTS.default,
+    });
+  }
+  ok(res, { found: true, source, isbn, book, suggested_points: pointsForPages(book.pages) });
+});
+
+// Entries with book details. Filters: member_id; status (reading|finished);
+// due_by=YYYY-MM-DD gives unreturned library books due on or before that day.
+app.get('/api/reading-log', async (req, res) => {
+  const { member_id, status, due_by } = req.query;
+  let q = req.sb.from('reading_log').select(`*, books(${BOOK_COLUMNS})`)
+    .order('created_at', { ascending: false }).order('id', { ascending: false });
+  if (member_id !== undefined) {
+    const mid = posInt(member_id);
+    if (!mid) return bad(res, 'member_id must be a positive integer');
+    q = q.eq('member_id', mid);
+  }
+  if (status !== undefined) {
+    if (!['reading', 'finished'].includes(status)) return bad(res, 'status must be reading or finished');
+    q = q.eq('status', status);
+  }
+  if (due_by !== undefined) {
+    if (!validDate(due_by)) return bad(res, 'due_by must be YYYY-MM-DD');
+    q = q.eq('source', 'library').is('returned_on', null).not('due_date', 'is', null).lte('due_date', due_by);
+  }
+  const { data, error } = await q;
+  if (sendErr(res, error)) return;
+  ok(res, (data || []).map(flattenLog));
+});
+
+// Add a book to one or more children's shelves.
+// body: { isbn, title, author, cover_url, pages, member_ids: [..],
+//         source: 'library'|'owned', due_date, points }
+app.post('/api/reading-log', async (req, res) => {
+  const b = req.body || {};
+  const isbn = normalizeIsbn(b.isbn);
+  if (!isbn) return bad(res, 'isbn is not a valid book ISBN');
+  const title = String(b.title ?? '').trim();
+  if (!title) return bad(res, 'title is required');
+  if (title.length > 300) return bad(res, 'title is too long');
+  const author = String(b.author ?? '').trim().slice(0, 300) || null;
+  let cover = b.cover_url ? String(b.cover_url).trim() : null;
+  if (cover && (cover.length > 500 || !/^https:\/\//i.test(cover))) cover = null;
+  let pages = null;
+  if (b.pages !== undefined && b.pages !== null && b.pages !== '') {
+    pages = posInt(b.pages);
+    if (!pages || pages > 20000) return bad(res, 'pages must be a positive whole number');
+  }
+  if (!Array.isArray(b.member_ids) || !b.member_ids.length) return bad(res, 'pick at least one child');
+  const memberIds = [...new Set(b.member_ids.map(posInt))];
+  if (memberIds.length > 20 || memberIds.includes(null)) return bad(res, 'member_ids must be positive integers');
+  const source = b.source === 'library' ? 'library' : (b.source === 'owned' || b.source === undefined) ? 'owned' : null;
+  if (!source) return bad(res, 'source must be library or owned');
+  let due = null;
+  if (source === 'library') {
+    due = b.due_date ? b.due_date : addDaysIso(isoDate(new Date()), LIBRARY_LOAN_DAYS);
+    if (!validDate(due)) return bad(res, 'due_date must be YYYY-MM-DD');
+  }
+  let points = pointsForPages(pages);
+  if (b.points !== undefined && b.points !== null && b.points !== '') {
+    points = Number(b.points);
+    if (!Number.isInteger(points) || points < 0 || points > 100) return bad(res, 'points must be a whole number from 0 to 100');
+  }
+
+  const { data: members, error: me } = await req.sb.from('members').select('id,name').in('id', memberIds);
+  if (sendErr(res, me)) return;
+  if ((members || []).length !== memberIds.length) return bad(res, 'one of the selected children was not found');
+
+  // One active (still "reading") entry per child and book.
+  const { data: active, error: ae } = await req.sb.from('reading_log').select('member_id')
+    .eq('isbn', isbn).eq('status', 'reading').in('member_id', memberIds);
+  if (sendErr(res, ae)) return;
+  if ((active || []).length) {
+    const names = members.filter(m => active.some(a => a.member_id === m.id)).map(m => m.name);
+    return bad(res, `${names.join(' and ')} ${names.length > 1 ? 'are' : 'is'} already reading this book`);
+  }
+
+  const { error: be } = await req.sb.from('books')
+    .upsert({ isbn, title, author, cover_url: cover, pages }, { onConflict: 'isbn' });
+  if (sendErr(res, be)) return;
+  const { data, error } = await req.sb.from('reading_log')
+    .insert(memberIds.map(member_id => ({ member_id, isbn, source, status: 'reading', due_date: due, points })))
+    .select(`*, books(${BOOK_COLUMNS})`);
+  if (error && error.code === '23505') return bad(res, 'That child is already reading this book');
+  if (sendErr(res, error)) return;
+  ok(res, data.map(flattenLog));
+});
+
+// Mark a book finished (any signed-in account, so the wall tablet can).
+// body.date (YYYY-MM-DD, the caller's local day) is optional. Idempotent.
+app.post('/api/reading-log/:id/finish', async (req, res) => {
+  const id = posInt(req.params.id);
+  if (!id) return notFound(res);
+  const date = (req.body || {}).date || isoDate(new Date());
+  if (!validDate(date)) return bad(res, 'date must be YYYY-MM-DD');
+  const { data: row } = await req.sb.from('reading_log').select(`*, books(${BOOK_COLUMNS})`).eq('id', id).maybeSingle();
+  if (!row) return notFound(res);
+  if (row.status === 'finished') return ok(res, flattenLog(row));
+  const { data, error } = await req.sb.from('reading_log')
+    .update({ status: 'finished', finished_on: date }).eq('id', id).eq('status', 'reading')
+    .select(`*, books(${BOOK_COLUMNS})`).single();
+  if (sendErr(res, error)) return;
+  ok(res, flattenLog(data));
+});
+
+// Undo a finish (parents): the book goes back to "reading" and its points leave the balance.
+app.post('/api/reading-log/:id/unfinish', async (req, res) => {
+  const id = posInt(req.params.id);
+  if (!id) return notFound(res);
+  const { data: row } = await req.sb.from('reading_log').select(`*, books(${BOOK_COLUMNS})`).eq('id', id).maybeSingle();
+  if (!row) return notFound(res);
+  if (row.status === 'reading') return ok(res, flattenLog(row));
+  const { data, error } = await req.sb.from('reading_log')
+    .update({ status: 'reading', finished_on: null }).eq('id', id).eq('status', 'finished')
+    .select(`*, books(${BOOK_COLUMNS})`).single();
+  if (error && error.code === '23505') return bad(res, 'That child is already reading this book again');
+  if (sendErr(res, error)) return;
+  ok(res, flattenLog(data));
+});
+
+// Mark a library book returned (parents). body.returned === false undoes it.
+app.post('/api/reading-log/:id/return', async (req, res) => {
+  const id = posInt(req.params.id);
+  if (!id) return notFound(res);
+  const date = (req.body || {}).date || isoDate(new Date());
+  if (!validDate(date)) return bad(res, 'date must be YYYY-MM-DD');
+  const { data: row } = await req.sb.from('reading_log').select('*').eq('id', id).maybeSingle();
+  if (!row) return notFound(res);
+  if (row.source !== 'library') return bad(res, 'Only library books can be returned');
+  const returned = (req.body || {}).returned !== false;
+  const { data, error } = await req.sb.from('reading_log')
+    .update({ returned_on: returned ? date : null }).eq('id', id)
+    .select(`*, books(${BOOK_COLUMNS})`).single();
+  if (sendErr(res, error)) return;
+  ok(res, flattenLog(data));
+});
+
+// Change an entry's points or due date (parents), e.g. after renewing at the library.
+app.put('/api/reading-log/:id', async (req, res) => {
+  const id = posInt(req.params.id);
+  if (!id) return notFound(res);
+  const b = req.body || {};
+  const { data: row } = await req.sb.from('reading_log').select('*').eq('id', id).maybeSingle();
+  if (!row) return notFound(res);
+  const patch = {};
+  if (b.points !== undefined) {
+    const p = Number(b.points);
+    if (!Number.isInteger(p) || p < 0 || p > 100) return bad(res, 'points must be a whole number from 0 to 100');
+    patch.points = p;
+  }
+  if (b.due_date !== undefined) {
+    if (row.source !== 'library') return bad(res, 'Only library books have a due date');
+    if (!validDate(b.due_date)) return bad(res, 'due_date must be YYYY-MM-DD');
+    patch.due_date = b.due_date;
+  }
+  if (!Object.keys(patch).length) return bad(res, 'nothing to change');
+  const { data, error } = await req.sb.from('reading_log').update(patch).eq('id', id)
+    .select(`*, books(${BOOK_COLUMNS})`).single();
+  if (sendErr(res, error)) return;
+  ok(res, flattenLog(data));
+});
+
+app.delete('/api/reading-log/:id', async (req, res) => {
+  const id = posInt(req.params.id);
+  if (!id) return notFound(res);
+  const { data, error } = await req.sb.from('reading_log').delete().eq('id', id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
 });
 
 // ---------- Bonus points ----------
@@ -1043,6 +1276,8 @@ app.get('/api/chores/completions', async (req, res) => {
     req.sb.from('chores').select('id,member_id,points'),
   ]);
   if (sendErr(res, e1 || e2)) return;
+  let books;   // books finished in this range count toward its stars, like chores
+  try { books = await fetchReadingPoints(req.sb, { start, end }); } catch (e) { return sendErr(res, e); }
   const byId = Object.fromEntries((chores || []).map(c => [c.id, c]));
   const starMap = {};
   let familyChorePoints = 0;
@@ -1052,6 +1287,7 @@ app.get('/api/chores/completions', async (req, res) => {
     if (c.member_id != null) starMap[c.member_id] = (starMap[c.member_id] || 0) + c.points;
     else familyChorePoints += c.points;
   }
+  for (const b of books) starMap[b.member_id] = (starMap[b.member_id] || 0) + b.points;
   const stars = Object.entries(starMap).map(([member_id, points]) => ({ member_id: Number(member_id), points }));
   ok(res, { completions, stars, family_chore_points: familyChorePoints });
 });

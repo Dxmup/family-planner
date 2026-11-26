@@ -158,6 +158,7 @@ tickClock();
 // ---------- modal ----------
 
 function openModal(html) {
+  stopScanner();   // never leave the barcode camera running behind another dialog
   $('#modal').innerHTML = html;
   // Generic fields (names, tasks, meals) trip mobile autofill heuristics and
   // summon the password/payment bar; opt everything out unless a field
@@ -167,6 +168,7 @@ function openModal(html) {
   $('#modal-backdrop').classList.remove('hidden');
 }
 function closeModal() {
+  stopScanner();
   $('#modal-backdrop').classList.add('hidden');
   $('#modal').innerHTML = '';
 }
@@ -368,6 +370,7 @@ async function render() {
     calendar: renderCalendar,
     meals: renderMeals,
     chores: renderChores,
+    reading: renderReading,
     routines: renderRoutines,
     lists: renderLists,
     family: renderFamily,
@@ -450,7 +453,7 @@ function setTodayFocus(memberId) {
 }
 
 async function renderToday() {
-  const [d, weather] = await Promise.all([api.get('/api/dashboard'), weatherHtml()]);
+  const [d, weather, booksDue] = await Promise.all([api.get('/api/dashboard'), weatherHtml(), fetchBooksDue()]);
   const day = fromYmd(d.date);
 
   // Focus mode: narrow everything to one member (family-wide events stay).
@@ -461,6 +464,7 @@ async function renderToday() {
     d.routines = (d.routines || []).filter(r => r.member_id === focus.id || r.member_id === null);
     d.due_tasks = (d.due_tasks || []).filter(t => t.member_id === focus.id);
   }
+  const dueBooks = focus ? booksDue.filter(b => b.member_id === focus.id) : booksDue;
 
   const eventsHtml = d.events.length ? d.events.map(e => {
     const m = e.member_id ? memberById(e.member_id) : null;
@@ -538,6 +542,14 @@ async function renderToday() {
       </div>`;
     }).join('');
     cards.push({ key: 'due', cls: 'due-card', html: `<h3>📌 Due${HANDLE}</h3>${dueHtml}` });
+  }
+  if (dueBooks.length) {
+    // Compact "books due soon" card: unreturned library books due within a few days (or overdue).
+    cards.push({ key: 'books-due', cls: 'due-card', html: `<h3>📚 Books due soon${HANDLE}</h3>${dueBooks.map(b => {
+      const m = memberById(b.member_id);
+      return `<div class="list-item"><span class="assignee-chip" title="${esc(m ? m.name : '')}">${esc(m ? m.avatar : '')}</span>
+        <span class="li-text book-due-title">${esc(b.title)}</span>${bookDueBadge(b)}</div>`;
+    }).join('')}` });
   }
   for (const r of (d.routines || []).filter(r => r.items.length)) {
     const m = r.member_id ? memberById(r.member_id) : null;
@@ -1502,6 +1514,510 @@ function choreForm(chore = {}) {
       closeModal(); renderChores();
     } catch (e) { alert(e.message); }
   });
+}
+
+// ---------- Reading ----------
+// Each child's bookshelf. A parent scans ISBN barcodes with "Add books";
+// the child (or a parent, or the wall tablet) taps "Finished!" to earn the
+// book's stars. Finished books are totalled into star balances by the API.
+
+const BOOK_DUE_SOON_DAYS = 3;          // library books due within this many days are flagged
+const FINISHED_SHOWN = 8;              // finished books shown per child before "Show all"
+const ZXING_URL = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+const ZXING_SRI = 'sha384-BzBxP10ZE72aitqj5UMmUsbKFliP/DZqA8Wq+BNNhlIJDGoEd1tpkMYXOg9+n6sB';
+const readingUi = { showAll: new Set(), win: null };
+
+// Covers come from an external host: if one fails to load, drop the <img> and
+// the title text underneath shows instead.
+document.addEventListener('error', (e) => {
+  const img = e.target;
+  if (img instanceof HTMLImageElement && img.classList.contains('book-cover-img')) img.remove();
+}, true);
+
+// ISBN-13 (978/979 + check digit) or ISBN-10 (converted) -> 13 digits, else null.
+// Same rules as the server (lib/books.js); non-book barcodes return null.
+function isbnClean(input) {
+  const s = String(input ?? '').toUpperCase().replace(/[\s-]/g, '').replace(/^ISBN(?:1[03])?:?/, '');
+  const check13 = (f) => {
+    let t = 0;
+    for (let i = 0; i < 12; i++) t += Number(f[i]) * (i % 2 ? 3 : 1);
+    return String((10 - (t % 10)) % 10);
+  };
+  if (/^97[89]\d{10}$/.test(s)) return check13(s.slice(0, 12)) === s[12] ? s : null;
+  if (/^\d{9}[\dX]$/.test(s)) {
+    let t = 0;
+    for (let i = 0; i < 10; i++) t += (s[i] === 'X' ? 10 : Number(s[i])) * (10 - i);
+    if (t % 11 !== 0) return null;
+    const base = '978' + s.slice(0, 9);
+    return base + check13(base);
+  }
+  return null;
+}
+
+function bookCoverHtml(r, large) {
+  const url = /^https:\/\//i.test(r.cover_url || '') ? r.cover_url : '';
+  return `<div class="book-cover${large ? ' lg' : ''}"><span class="book-cover-text">${esc(r.title || 'Book')}</span>${
+    url ? `<img class="book-cover-img" src="${esc(url)}" alt="Cover of ${esc(r.title || 'the book')}" width="${large ? 72 : 56}" height="${large ? 108 : 84}" loading="lazy" referrerpolicy="no-referrer">` : ''}</div>`;
+}
+
+function bookDaysLeft(r) {
+  return Math.round((fromYmd(r.due_date) - fromYmd(todayStr())) / 86400000);
+}
+
+// Library books not yet handed back: red when overdue, orange within a few days.
+function bookDueBadge(r) {
+  if (r.source !== 'library') return '';
+  if (r.returned_on) return '<span class="due-badge">✓ Returned</span>';
+  if (!r.due_date) return '<span class="due-badge">📚 Library</span>';
+  const n = bookDaysLeft(r);
+  const d = fromYmd(r.due_date);
+  const label = `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
+  if (n < 0) return `<span class="due-badge overdue">⚠ Overdue · ${label}</span>`;
+  if (n === 0) return '<span class="due-badge today">Due today</span>';
+  if (n <= BOOK_DUE_SOON_DAYS) return `<span class="due-badge today">Due ${n === 1 ? 'tomorrow' : 'in ' + n + ' days'}</span>`;
+  return `<span class="due-badge">📚 Due ${label}</span>`;
+}
+
+function bookRowHtml(r, isParent) {
+  const finished = r.status === 'finished';
+  const libOut = r.source === 'library' && !r.returned_on;
+  const flag = libOut && r.due_date && bookDaysLeft(r) < 0 ? ' overdue' : libOut && r.due_date && bookDaysLeft(r) <= BOOK_DUE_SOON_DAYS ? ' soon' : '';
+  const acts = [];
+  if (!finished) acts.push(`<button class="btn book-finish" data-book-finish="${r.id}">Finished! 🎉</button>`);
+  if (isParent) {
+    if (finished) acts.push(`<button class="btn ghost small" data-book-unfinish="${r.id}">Undo finish</button>`);
+    if (libOut) acts.push(`<button class="btn ghost small" data-book-return="${r.id}">Returned</button>`);
+    acts.push(`<button class="btn ghost small" data-book-edit="${r.id}" aria-label="Edit ${esc(r.title)}">✏️</button>`);
+  }
+  return `<div class="book-row${flag}">
+    ${bookCoverHtml(r)}
+    <div class="book-info">
+      <div class="book-title">${esc(r.title)}</div>
+      ${r.author ? `<div class="book-author">${esc(r.author)}</div>` : ''}
+      <div class="book-meta">${bookDueBadge(r)}<span class="book-pts">⭐ ${finished ? '+' : ''}${r.points}</span></div>
+      ${acts.length ? `<div class="book-actions">${acts.join('')}</div>` : ''}
+    </div>
+  </div>`;
+}
+
+async function renderReading() {
+  const isParent = !!auth.session?.parent;
+  let rows = [], loadError = '';
+  try { rows = await api.get('/api/reading-log'); } catch (e) { loadError = e.message; }
+
+  const cards = state.members.map(m => {
+    const mine = rows.filter(r => r.member_id === m.id);
+    const reading = mine.filter(r => r.status === 'reading');
+    const finished = mine.filter(r => r.status === 'finished').sort((a, b) => {
+      const ao = a.source === 'library' && !a.returned_on ? 0 : 1, bo = b.source === 'library' && !b.returned_on ? 0 : 1;
+      return ao - bo || (b.finished_on || '').localeCompare(a.finished_on || '') || b.id - a.id;
+    });
+    const stars = finished.reduce((t, r) => t + r.points, 0);
+    const all = readingUi.showAll.has(m.id);
+    const shown = all ? finished : finished.slice(0, FINISHED_SHOWN);
+    return `<div class="card reading-card">
+      <div class="chore-member-head"><span class="avatar">${esc(m.avatar)}</span>
+        <span class="name" style="color:${esc(m.color)}">${esc(m.name)}</span>
+        <span class="star-count">📖 ${finished.length} · ⭐ ${stars}</span></div>
+      <div class="view-sub reading-sub">Reading now</div>
+      ${reading.length ? reading.map(r => bookRowHtml(r, isParent)).join('') : '<div class="empty">No book on the shelf yet 📚</div>'}
+      ${finished.length ? `<div class="view-sub reading-sub">Finished (${finished.length})</div>
+        ${shown.map(r => bookRowHtml(r, isParent)).join('')}
+        ${finished.length > FINISHED_SHOWN ? `<button class="btn ghost small" data-book-more="${m.id}">${all ? 'Show fewer' : `Show all ${finished.length}`}</button>` : ''}` : ''}
+    </div>`;
+  }).join('');
+
+  $('#main').innerHTML = `
+    <div class="view-header">
+      <div>
+        <div class="view-title">Reading</div>
+        <div class="view-sub">Finish a book, earn stars ⭐</div>
+      </div>
+      ${isParent ? '<button class="btn" id="add-books">📚 Add books</button>' : ''}
+    </div>
+    ${readingUi.win ? `<div class="routine-done-banner book-win" id="book-win">${readingUi.win}</div>` : ''}
+    ${loadError ? `<div class="empty">Could not load the reading log: ${esc(loadError)}</div>` : ''}
+    <div class="reading-grid">${cards || '<div class="empty">Add family members first.</div>'}</div>`;
+
+  if (readingUi.win) {
+    readingUi.win = null;
+    setTimeout(() => $('#book-win')?.remove(), 7000);
+  }
+
+  $('#add-books')?.addEventListener('click', openAddBooks);
+  $$('[data-book-finish]').forEach(btn => btn.addEventListener('click', async () => {
+    const r = rows.find(x => x.id === Number(btn.dataset.bookFinish));
+    btn.disabled = true;
+    try {
+      await api.post(`/api/reading-log/${r.id}/finish`, { date: todayStr() });
+      const m = memberById(r.member_id);
+      readingUi.win = `🎉 ${esc(m ? m.name : 'You')} finished ${esc(r.title)}! +${r.points} ⭐`;
+    } catch (e) { alert(e.message); }
+    renderReading();
+  }));
+  const act = (attr, fn) => $$(`[${attr}]`).forEach(btn => btn.addEventListener('click', async () => {
+    const r = rows.find(x => x.id === Number(btn.getAttribute(attr)));
+    try { await fn(r); renderReading(); } catch (e) { alert(e.message); }
+  }));
+  act('data-book-unfinish', (r) => confirm(`Undo "${r.title}"? Its ${r.points} stars come back off.`)
+    ? api.post(`/api/reading-log/${r.id}/unfinish`, {}) : null);
+  act('data-book-return', (r) => api.post(`/api/reading-log/${r.id}/return`, { date: todayStr() }));
+  $$('[data-book-edit]').forEach(b => b.addEventListener('click', () =>
+    bookEditForm(rows.find(x => x.id === Number(b.dataset.bookEdit)))));
+  $$('[data-book-more]').forEach(b => b.addEventListener('click', () => {
+    const id = Number(b.dataset.bookMore);
+    readingUi.showAll.has(id) ? readingUi.showAll.delete(id) : readingUi.showAll.add(id);
+    renderReading();
+  }));
+}
+
+// Parent-only: change points / due date, undo a return, or delete the entry.
+function bookEditForm(r) {
+  const m = memberById(r.member_id);
+  openModal(`
+    <h2>✏️ ${esc(r.title)}</h2>
+    <div class="view-sub" style="margin-bottom:12px">${m ? `${esc(m.avatar)} ${esc(m.name)}` : ''}</div>
+    <div class="form-row"><label>Stars when finished</label>
+      <input id="f-points" type="number" inputmode="numeric" min="0" max="100" value="${r.points}"></div>
+    ${r.source === 'library' ? `<div class="form-row"><label>Due back</label>
+      <input id="f-due" type="date" value="${esc(r.due_date || '')}"></div>` : ''}
+    <div class="modal-actions">
+      <button class="btn danger" id="f-delete">Delete</button>
+      ${r.source === 'library' && r.returned_on ? '<button class="btn ghost" id="f-unreturn">Not returned</button>' : ''}
+      <span class="spacer"></span>
+      <button class="btn ghost" id="f-cancel">Cancel</button>
+      <button class="btn" id="f-save">Save</button>
+    </div>`);
+  $('#f-cancel').addEventListener('click', closeModal);
+  $('#f-delete').addEventListener('click', async () => {
+    if (!confirm(`Delete "${r.title}" from ${m ? m.name : 'the'} shelf?${r.status === 'finished' ? ' Its stars come off too.' : ''}`)) return;
+    try { await api.del(`/api/reading-log/${r.id}`); closeModal(); renderReading(); } catch (e) { alert(e.message); }
+  });
+  $('#f-unreturn')?.addEventListener('click', async () => {
+    try { await api.post(`/api/reading-log/${r.id}/return`, { returned: false }); closeModal(); renderReading(); }
+    catch (e) { alert(e.message); }
+  });
+  $('#f-save').addEventListener('click', async () => {
+    const points = Number($('#f-points').value);
+    if (!Number.isInteger(points) || points < 0 || points > 100) { alert('Stars must be a whole number from 0 to 100'); return; }
+    const body = { points };
+    if ($('#f-due')) {
+      if (!$('#f-due').value) { alert('Pick a due date'); return; }
+      body.due_date = $('#f-due').value;
+    }
+    try { await api.put(`/api/reading-log/${r.id}`, body); closeModal(); renderReading(); }
+    catch (e) { alert(e.message); }
+  });
+}
+
+// ---------- Add books (ISBN scanner, parents) ----------
+// The camera stays open between books so a whole stack goes in one pass.
+// Detection: the browser's BarcodeDetector where it supports EAN-13 (Chrome on
+// Android); otherwise the ZXing library is loaded from a CDN on demand (iPhones).
+// Typing an ISBN always works, with or without a camera.
+
+const scan = {
+  gen: 0,            // bumped by stopScanner(): lets stale async steps notice they were cancelled
+  stream: null, reader: null, timer: null,
+  busy: false,       // a book is being looked up / confirmed: ignore the camera
+  lastIsbn: '', lastAt: 0,
+  added: [],         // books saved during this session
+  card: null,
+  zxingLoad: null,
+};
+const SCAN_REPEAT_MS = 8000;   // the same barcode is ignored this long after it was last handled
+
+function stopScanner() {
+  scan.gen++;
+  clearTimeout(scan.timer); scan.timer = null;
+  try { scan.reader?.reset(); } catch { /* already stopped */ }
+  scan.reader = null;
+  if (scan.stream) scan.stream.getTracks().forEach(t => t.stop());
+  scan.stream = null;
+  const v = $('#scan-video');
+  if (v) v.srcObject = null;
+}
+
+// The camera must never run in the background.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && scan.stream) {
+    stopScanner();
+    if ($('#scan-cam')) setScanMsg('Camera paused. Tap here to turn it back on.', true);
+  }
+});
+window.addEventListener('pagehide', stopScanner);
+
+function setScanMsg(text, restart) {
+  const el = $('#scan-msg');
+  if (!el) return;
+  el.textContent = text;
+  el.onclick = restart ? () => { setScanMsg('Starting camera…'); startScanner(); } : null;
+  el.style.cursor = restart ? 'pointer' : '';
+}
+
+function scanNoCamera(text) {
+  $('#scan-cam')?.classList.add('off');
+  setScanMsg(text);
+}
+
+function loadZxing() {
+  if (window.ZXing) return Promise.resolve();
+  if (!scan.zxingLoad) {
+    scan.zxingLoad = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = ZXING_URL; s.integrity = ZXING_SRI; s.crossOrigin = 'anonymous';
+      s.onload = resolve;
+      s.onerror = () => { scan.zxingLoad = null; s.remove(); reject(new Error('barcode library did not load')); };
+      document.head.appendChild(s);
+    });
+  }
+  return scan.zxingLoad;
+}
+
+async function startScanner() {
+  $('#scan-cam')?.classList.remove('off');
+  const gen = ++scan.gen;
+  const stale = () => gen !== scan.gen;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    scanNoCamera('This browser cannot open the camera here (it needs a secure https page). Type the ISBN below instead.');
+    return;
+  }
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+  } catch (e) {
+    if (stale()) return;
+    scanNoCamera(
+      e.name === 'NotAllowedError' || e.name === 'SecurityError'
+        ? 'Camera permission was denied. Allow the camera for this site in your browser settings, or type the ISBN below.'
+        : e.name === 'NotFoundError' || e.name === 'OverconstrainedError'
+          ? 'No camera found on this device. Type the ISBN below instead.'
+          : `The camera could not start (${e.name || 'error'}). Type the ISBN below instead.`);
+    return;
+  }
+  if (stale()) { stream.getTracks().forEach(t => t.stop()); return; }   // closed while the permission prompt was up
+  scan.stream = stream;
+  const video = $('#scan-video');
+  if (!video) { stopScanner(); return; }
+
+  // Native detector, when it can read EAN-13 (book barcodes).
+  let detector = null;
+  if ('BarcodeDetector' in window) {
+    try {
+      const supported = await BarcodeDetector.getSupportedFormats();
+      const formats = ['ean_13', 'ean_8', 'upc_a'].filter(f => supported.includes(f));
+      if (formats.includes('ean_13')) detector = new BarcodeDetector({ formats });
+    } catch { /* fall back to the library */ }
+  }
+  if (stale()) return;
+
+  if (detector) {
+    video.srcObject = stream;
+    video.muted = true; video.setAttribute('playsinline', '');
+    try { await video.play(); } catch { /* autoplay will start it */ }
+    setScanMsg('Point the camera at the barcode on the back of the book');
+    const tick = async () => {
+      if (stale()) return;
+      if (!scan.busy && video.readyState >= 2) {
+        try {
+          for (const c of await detector.detect(video)) { onScanCode(c.rawValue); if (scan.busy) break; }
+        } catch { /* a bad frame; try the next one */ }
+      }
+      if (!stale()) scan.timer = setTimeout(tick, 200);
+    };
+    tick();
+    return;
+  }
+
+  // Fallback (iPhone Safari has no BarcodeDetector).
+  setScanMsg('Loading the barcode reader…');
+  try { await loadZxing(); } catch {
+    if (!stale()) { stopScanner(); scanNoCamera('The barcode reader could not be loaded (are you online?). Type the ISBN below instead.'); }
+    return;
+  }
+  if (stale()) return;
+  try {
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,
+      [ZXing.BarcodeFormat.EAN_13, ZXing.BarcodeFormat.EAN_8, ZXing.BarcodeFormat.UPC_A]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    scan.reader = new ZXing.BrowserMultiFormatReader(hints, 250);
+    // ZXing attaches the stream to the video element and starts it itself.
+    await scan.reader.decodeFromStream(stream, video, (result) => {
+      if (result && !stale()) onScanCode(result.getText());   // errors here just mean "no barcode in this frame"
+    });
+    if (!stale()) setScanMsg('Point the camera at the barcode on the back of the book');
+  } catch {
+    if (!stale()) { stopScanner(); scanNoCamera('The barcode reader failed to start. Type the ISBN below instead.'); }
+  }
+}
+
+function onScanCode(raw) {
+  if (scan.busy) return;
+  const isbn = isbnClean(raw);
+  if (!isbn) return;                                   // not a book barcode: ignore quietly
+  const now = Date.now();
+  if (isbn === scan.lastIsbn && now - scan.lastAt < SCAN_REPEAT_MS) return;   // same book still in view
+  navigator.vibrate?.(60);
+  handleIsbn(isbn);
+}
+
+function openAddBooks() {
+  stopScanner();                       // openModal also does this; keep it explicit
+  scan.busy = false; scan.lastIsbn = ''; scan.lastAt = 0; scan.added = []; scan.card = null;
+  openModal(`
+    <h2>📚 Add books</h2>
+    <div class="scan-cam" id="scan-cam">
+      <video id="scan-video" playsinline muted></video>
+      <div class="scan-guide"></div>
+      <div class="scan-msg" id="scan-msg">Starting camera…</div>
+    </div>
+    <div id="scan-panel"></div>
+    <div id="scan-added"></div>
+    <div class="modal-actions"><button class="btn" id="scan-done">Done</button></div>`);
+  $('#scan-done').addEventListener('click', () => { closeModal(); if (state.view === 'reading') renderReading(); });
+  showScanIdle();
+  renderScanAdded();
+  startScanner();
+}
+
+function showScanIdle(message) {
+  const panel = $('#scan-panel');
+  if (!panel) return;
+  scan.card = null;
+  panel.innerHTML = `
+    ${message ? `<div class="scan-note" id="scan-note">${esc(message)}</div>` : ''}
+    <div class="form-row"><label>Or type the ISBN</label>
+      <div class="scan-type">
+        <input id="scan-isbn" inputmode="numeric" placeholder="978…" aria-label="ISBN">
+        <button class="btn" id="scan-go">Look up</button>
+      </div></div>`;
+  const go = () => {
+    const raw = $('#scan-isbn').value;
+    const isbn = isbnClean(raw);
+    if (!isbn) { showScanIdle('That does not look like a book ISBN. Check the digits (13 digits starting 978 or 979, or a 10-digit ISBN).'); $('#scan-isbn').value = raw; return; }
+    handleIsbn(isbn);
+  };
+  $('#scan-go').addEventListener('click', go);
+  $('#scan-isbn').addEventListener('keydown', e => { if (e.key === 'Enter') go(); });
+  scan.busy = false;
+}
+
+function renderScanAdded() {
+  const el = $('#scan-added');
+  if (!el) return;
+  el.innerHTML = scan.added.length ? `
+    <div class="view-sub reading-sub">Added this session (${scan.added.length})</div>
+    ${scan.added.map(a => `<div class="scan-added-row">✓ <b>${esc(a.title)}</b>
+      <span class="li-by">${a.who.map(esc).join(', ')}${a.library ? ' · due ' + esc(a.due) : ''}</span></div>`).join('')}` : '';
+}
+
+async function handleIsbn(isbn) {
+  scan.busy = true;
+  scan.lastIsbn = isbn; scan.lastAt = Date.now();
+  const panel = $('#scan-panel');
+  if (!panel) return;
+  panel.innerHTML = `<div class="scan-note">Looking up ${esc(isbn)}…</div>`;
+  let res;
+  try { res = await api.get(`/api/books/lookup?isbn=${isbn}`); }
+  catch (e) {
+    if ($('#scan-panel')) showScanIdle(`Lookup failed: ${e.message}`);
+    scan.lastAt = Date.now();
+    return;
+  }
+  if (!$('#scan-panel')) return;       // modal was closed meanwhile
+  showBookCard(res);
+}
+
+function showBookCard(res) {
+  const panel = $('#scan-panel');
+  const book = res.book;
+  const kids = state.members;          // members carry no kid/adult flag, so everyone is offered
+  const picked = new Set();
+  let library = false;
+  const due = ymd(addDays(new Date(), 21));
+  scan.card = res;
+  panel.innerHTML = `
+    <div class="book-card">
+      <div class="book-row">
+        ${bookCoverHtml(book, true)}
+        <div class="book-info">
+          ${res.found ? `<div class="book-title">${esc(book.title)}</div>
+            ${book.author ? `<div class="book-author">${esc(book.author)}</div>` : ''}
+            <div class="li-by">${book.pages ? book.pages + ' pages · ' : ''}ISBN ${esc(res.isbn)}</div>`
+          : `<div class="scan-note" style="margin:0 0 8px">${res.lookup_failed
+              ? 'Could not reach the book lookup right now.' : 'This book was not found.'} Type the title and author:</div>
+            <div class="li-by">ISBN ${esc(res.isbn)}</div>`}
+        </div>
+      </div>
+      ${res.found ? '' : `<div class="form-row"><label>Title</label><input id="scan-title" maxlength="300"></div>
+        <div class="form-row"><label>Author (optional)</label><input id="scan-author" maxlength="300"></div>`}
+      <div class="form-row"><label>Who is reading it? Tap one or more</label>
+        <div class="member-filter">${kids.map(m => `<button class="member-chip who-btn" data-who="${m.id}" style="color:${esc(m.color)}"
+          aria-pressed="false">${esc(m.avatar)} ${esc(m.name)}</button>`).join('')}</div></div>
+      <div class="form-row">
+        <button class="member-chip who-btn" id="scan-lib" aria-pressed="false" style="color:var(--ink)">📚 Library book</button>
+        <div id="scan-due-row" style="display:none;margin-top:8px"><label>Due back</label>
+          <input id="scan-due" type="date" value="${due}"></div></div>
+      <div class="form-row"><label>Stars when finished</label>
+        <input id="scan-points" type="number" inputmode="numeric" min="0" max="100" value="${res.suggested_points}"></div>
+      <div id="scan-err" class="empty" style="display:none;color:#c85454"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="scan-skip">Skip</button>
+        <button class="btn" id="scan-save">Save</button>
+      </div>
+    </div>`;
+  const fail = (m) => { const el = $('#scan-err'); el.textContent = m; el.style.display = 'block'; };
+  $$('#scan-panel [data-who]').forEach(b => b.addEventListener('click', () => {
+    const id = Number(b.dataset.who);
+    picked.has(id) ? picked.delete(id) : picked.add(id);
+    b.classList.toggle('on', picked.has(id));
+    b.setAttribute('aria-pressed', picked.has(id));
+  }));
+  $('#scan-lib').addEventListener('click', () => {
+    library = !library;
+    $('#scan-lib').classList.toggle('on', library);
+    $('#scan-lib').setAttribute('aria-pressed', library);
+    $('#scan-due-row').style.display = library ? '' : 'none';
+  });
+  $('#scan-skip').addEventListener('click', () => { scan.lastAt = Date.now(); showScanIdle(); });
+  $('#scan-save').addEventListener('click', async () => {
+    const title = res.found ? book.title : $('#scan-title').value.trim();
+    if (!title) return fail('Type the book title first.');
+    if (!picked.size) return fail('Tap who is reading it.');
+    const points = Number($('#scan-points').value);
+    if (!Number.isInteger(points) || points < 0 || points > 100) return fail('Stars must be a whole number from 0 to 100.');
+    if (library && !$('#scan-due').value) return fail('Pick the due date.');
+    $('#scan-save').disabled = true;
+    const gen = scan.gen;
+    try {
+      await api.post('/api/reading-log', {
+        isbn: res.isbn, title,
+        author: res.found ? book.author : $('#scan-author').value.trim(),
+        cover_url: book.cover_url, pages: book.pages,
+        member_ids: [...picked], source: library ? 'library' : 'owned',
+        due_date: library ? $('#scan-due').value : null, points,
+      });
+    } catch (e) {
+      if ($('#scan-err')) { $('#scan-save').disabled = false; fail(e.message); } else alert(e.message);
+      return;
+    }
+    scan.added.unshift({
+      title, who: [...picked].map(id => memberById(id)?.name || 'Child'),
+      library, due: library ? $('#scan-due')?.value : '',
+    });
+    scan.lastAt = Date.now();          // the book is probably still in front of the camera
+    if (!$('#scan-panel')) { if (state.view === 'reading') renderReading(); return; }
+    renderScanAdded();
+    showScanIdle();
+  });
+}
+
+// "Books due soon" lines for the Today screen: unreturned library books due
+// within BOOK_DUE_SOON_DAYS (or overdue). Quietly empty if the log is unavailable.
+async function fetchBooksDue() {
+  try { return await api.get(`/api/reading-log?due_by=${ymd(addDays(new Date(), BOOK_DUE_SOON_DAYS))}`); }
+  catch { return []; }
 }
 
 // ---------- Routines ----------
