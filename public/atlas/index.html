@@ -3,788 +3,296 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hensel Family Adventure Atlas</title>
+<title>Explore · Hensel Family Adventure Atlas</title>
 <link rel="stylesheet" href="/atlas/atlas.css">
+<style>
+  .xp-map{position:relative;background:linear-gradient(180deg,#F4F6EE,#E4E9DA);border:1px solid var(--border);
+    border-radius:16px;box-shadow:var(--shadow);overflow:hidden;min-height:300px}
+  .xp-map svg{display:block;width:100%;height:auto;max-width:100%}
+  .xp-map .mp-line{fill:none;stroke:var(--amber);stroke-width:2;stroke-dasharray:2 6;stroke-linecap:round;opacity:.85}
+  .xp-map .mp-dot{cursor:pointer;outline:none}
+  .xp-map .mp-dot .hit{fill:transparent;stroke:transparent;stroke-width:2}
+  .xp-map .mp-dot .pt{fill:var(--card);stroke:var(--pine);stroke-width:2;transition:r .12s}
+  .xp-map .mp-dot.seen .pt{fill:var(--amber);stroke:var(--amber-deep)}
+  .xp-map .mp-dot:hover .pt,.xp-map .mp-dot:focus .pt{stroke-width:3.5}
+  .xp-map .mp-dot:focus-visible .hit{stroke:var(--pine)}
+  .xp-map .mp-dot.dim{opacity:.28}
+  .xp-map .mp-chk{fill:none;stroke:#fff;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  .xp-map .mp-lab{font:600 12px var(--sans);fill:var(--ink);paint-order:stroke;stroke:#F1F4EA;stroke-width:3.5px;
+    stroke-linejoin:round;pointer-events:none}
+  .xp-map .mp-lab.hid{opacity:0;transition:opacity .12s}
+  .xp-map .mp-dot:hover .mp-lab.hid,.xp-map .mp-dot:focus .mp-lab.hid{opacity:1}
+  .xp-map .mp-home .pt{fill:var(--pine);stroke:var(--amber);stroke-width:3}
+  .xp-map .mp-home-lab{font:700 13px var(--serif);fill:var(--pine);paint-order:stroke;stroke:#F1F4EA;stroke-width:4px;stroke-linejoin:round}
+  .xp-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin:10px 2px 0;font-size:12.5px;color:var(--muted)}
+  .xp-legend span{display:inline-flex;align-items:center;gap:7px}
+  .xp-legend i{width:12px;height:12px;border-radius:50%;display:inline-block;border:2px solid var(--pine);background:var(--card)}
+  .xp-legend i.h{background:var(--pine);border-color:var(--amber)}
+  .xp-legend i.v{background:var(--amber);border-color:var(--amber-deep)}
+  .xp-find{margin-top:26px}
+  .xp-find h2,.xp-more summary{font-family:var(--serif);font-weight:600}
+  .xp-find h2{font-size:22px;margin:0 0 12px}
+  .xp-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .xp .chip{min-height:40px;padding:6px 14px;font-size:14px}
+  .xp-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:12px 0 4px}
+  .xp-bar .search{min-height:44px;font-size:16px;padding:8px 16px;min-width:0;flex:1 1 220px}
+  .xp-sort{display:flex;gap:8px;flex:none}
+  .xp-count{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin:10px 2px 12px}
+  .xp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+  .xc{display:flex;flex-direction:column;gap:5px;min-width:0;background:var(--card);border:1px solid var(--border);
+    border-radius:14px;padding:14px 15px;box-shadow:var(--shadow);text-decoration:none;color:var(--ink);transition:.12s;
+    border-left:5px solid var(--pine2)}
+  .xc:hover,.xc:focus-visible{border-color:var(--amber);border-left-color:var(--amber);transform:translateY(-1px)}
+  .xc:focus-visible{outline:2px solid var(--pine);outline-offset:2px}
+  .xc.seen{border-left-color:var(--amber)}
+  .xc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .xc h3{margin:0;font-family:var(--serif);font-size:20px;font-weight:600;line-height:1.2;letter-spacing:-.01em;min-width:0}
+  .xc-stamp{flex:none;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;
+    color:var(--amber-deep);border:1.5px solid var(--amber);border-radius:6px;padding:2px 6px;transform:rotate(-3deg);background:#FBF3E2}
+  .xc-meta{font-family:var(--mono);font-size:12px;color:var(--amber-deep);font-weight:600}
+  .xc-tease{font-size:13.5px;color:#33443c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .xc-tease b{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-right:6px}
+  .xc-n{font-size:12.5px;color:var(--muted)}
+  .xp-empty{text-align:center;color:var(--muted);padding:34px 0}
+  .xp-more{margin-top:30px;background:var(--card);border:1px solid var(--border);border-radius:14px;padding:4px 16px}
+  .xp-more summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-size:17px}
+  .xp-more .corridors{padding:4px 0 16px}
+  .xp-more a.node{text-decoration:none}
+  .xp-more .route{overflow-x:visible}
+  @media(max-width:520px){.xp-grid{grid-template-columns:1fr}}
+</style>
 </head>
 <body>
-
-
-<header class="mast">
-  <div class="wrap">
-    <p class="eyebrow">Family Adventure Portfolio · Est. Greenville, SC</p>
-    <h1>The Hensel Family Adventure Atlas</h1>
-    <p class="sub">A living field guide to the quarterly-adventure portfolio — every destination a playbook, every long drive broken into a chain of discoveries. Built for two girls (K &amp; 4th grade) who love water, animals, hands-on wonder, and the roads less taken. Powered by a live database with flight cost comparison and budget-to-trip matching.</p>
-    <div class="stats">
-      <div class="stat"><b id="cityCount">23</b><span>Cities scouted</span></div>
-      <div class="stat"><b id="totCount">0</b><span>Attractions logged</span></div>
-      <div class="stat"><b id="corridorCount">5</b><span>Travel corridors</span></div>
-      <div class="stat"><b id="themeCount">8</b><span>Experience themes</span></div>
-    </div>
-  </div>
-</header>
-
-<nav class="site-nav" aria-label="Site navigation">
-  <div class="wrap nav-wrap">
-    <a class="nav-link" href="/" style="color:var(--amber)">← Planner</a>
-    <a class="nav-link" href="#network">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7l-7 10"/><path d="M12 7l7 10"/><path d="M6 19h12"/></svg>
-      Corridors</a>
-    <a class="nav-link" href="#budget">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-      Trip Planner</a>
-    <a class="nav-link" href="#library">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-      Attractions</a>
-    <a class="nav-link" href="#playbooks">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-      Playbooks</a>
-    <a class="nav-link" href="#strategy">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-      Strategy</a>
-  </div>
-</nav>
-
-<section id="network">
-  <div class="wrap">
-    <div class="sec-head"><span class="sec-num">01</span><h2>The Stopover Network</h2></div>
-    <p class="sec-desc">Rather than drive ten hours straight, we chain hub cities so the travel <em>becomes</em> the vacation. Every corridor radiates from home; each stop is itself a future destination. Solid amber stops are overnight-worthy playbooks in their own right; dashed stops are lighter pass-throughs (still worth a meal and a leg-stretch).</p>
-    <div class="corridors" id="corridors"></div>
-    <div class="legend">
-      <span><i class="k home"></i> Home base — Greenville</span>
-      <span><i class="k stay"></i> Overnight-worthy hub (own playbook)</span>
-      <span><i class="k pass"></i> Pass-through / gateway stop</span>
-      <span style="font-family:var(--mono);font-size:11px">▸ drive time between stops</span>
-    </div>
-  </div>
-</section>
-
-<section id="budget">
-  <div class="wrap">
-    <div class="sec-head"><span class="sec-num">02</span><h2>Trip Planner</h2></div>
-    <p class="sec-desc">Set your assumptions once and every city re-prices automatically. Use <b>Trip Finder</b> to discover what fits a budget, <b>Trip Builder</b> to chain stops into a full itinerary, and <b>Drive vs. Fly</b> to compare modes with live fare lookup from GSP, ATL, and CLT.</p>
-
-    <!-- ── Travel Assumptions ───────────────────────────────────── -->
-    <div class="sp">
-      <div class="sp-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-        Travel Assumptions
-      </div>
-      <div class="assumptions">
-        <div class="assume"><label>Gas / gal</label><div class="ip"><span>$</span><input id="gas" type="number" step="0.05" min="0" value="3.15"></div></div>
-        <div class="assume"><label>Miles / gal</label><div class="ip"><input id="mpg" type="number" step="1" min="1" value="25"></div></div>
-        <div class="assume"><label>Food / day</label><div class="ip"><span>$</span><input id="food" type="number" step="5" min="0" value="90"></div></div>
-        <div class="assume"><label>Hotel / night</label><div class="ip"><span>$</span><input id="hotel" type="number" step="10" min="0" value="150"></div></div>
-        <div class="assume"><label>Nights / stop</label><div class="ip"><input id="nights" type="number" step="1" min="0" value="2"></div></div>
-        <div class="assume"><label>Buffer %</label><div class="ip"><input id="buffer" type="number" step="1" min="0" value="10"></div></div>
-        <div class="assume"><label>Car rental / day</label><div class="ip"><span>$</span><input id="carRate" type="number" step="5" min="0" value="65"></div></div>
-        <div class="assume"><label>Local mi / day</label><div class="ip"><input id="localMi" type="number" step="5" min="0" value="30"></div></div>
-        <div class="assume"><label>Adults</label><div class="ip"><input id="adults" type="number" step="1" min="1" value="2"></div></div>
-        <div class="assume"><label>Kids</label><div class="ip"><input id="kids" type="number" step="1" min="0" value="2"></div></div>
-        <p class="assume-note">Hotel is a placeholder until you refresh a city — then its real rate replaces the default. Car rental &amp; local miles feed the Drive vs. Fly comparison below.</p>
-      </div>
-    </div>
-
-    <!-- ── Trip Finder ──────────────────────────────────────────── -->
-    <div class="sp">
-      <div class="sp-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        Trip Finder — Budget to Destination Matching
-      </div>
-      <div class="tripfinder" id="tripFinder">
-        <div class="tf-controls">
-          <div class="assume"><label>Budget $</label><div class="ip"><span>$</span><input id="tfBudget" type="number" step="100" min="0" value="2000"></div></div>
-          <div class="assume"><label>Trip nights</label><div class="ip"><input id="tfNights" type="number" step="1" min="1" value="4"></div></div>
-          <button class="qrbtn solid" id="tfGo">Find trips that fit</button>
-        </div>
-        <p class="tf-hint">Uses the assumptions above (gas, food, hotel, buffer) to cost each option, then shows the leftover budget as an attractions &amp; meals cushion.</p>
-        <div id="tfResults"></div>
-      </div>
-    </div>
-
-    <!-- ── Trip Builder ──────────────────────────────────────────── -->
-    <div class="sp">
-      <div class="sp-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l19-9-9 19-2-8-8-2z"/></svg>
-        Trip Builder — Chain Stops Into One Estimate
-      </div>
-      <div class="quickroutes" id="quickroutes"></div>
-      <select id="addStop" aria-label="Add a stop to your trip"></select>
-      <div class="builder-actions">
-        <button class="qrbtn solid" id="recommendBtn">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13a5 5 0 0 1 0 10H8a5 5 0 0 1-5-5"/><path d="M16 3l3 3-3 3"/></svg>
-          Recommend efficient route</button>
-        <button class="linkbtn" id="clearTrip">Clear trip</button>
-        <label class="tripdate">Trip start <input type="date" id="tripStart"></label>
-        <span class="assume-note" style="margin:0">Drag the ⠿ handle to reorder stops.</span>
-      </div>
-      <div class="itinerary" id="itinerary"></div>
-      <div class="tripsummary" id="tripSummary"></div>
-      <div class="tripevents" id="tripEvents"></div>
-    </div>
-
-    <!-- ── Drive vs. Fly ─────────────────────────────────────────── -->
-    <div class="sp">
-      <div class="sp-title">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21 4 19 2c-2-2-4-2-5.5-.5L10 5 1.8 6.2l5.8 5.8L6.2 16l3 3 3-1.4 5.8 5.8 1.2-8.2z"/></svg>
-        Drive vs. Fly — Cost Comparison
-      </div>
-      <div class="flycompare" id="flyWrap">
-        <div class="fly-controls">
-          <label>Depart from <select id="depAirport"><option value="GSP">GSP · Greenville (home)</option><option value="ATL">ATL · Atlanta (+drive)</option><option value="CLT">CLT · Charlotte (+drive)</option></select></label>
-          <label>RT airfare (party) <div class="ip"><span>$</span><input id="airfare" type="number" step="10" min="0" placeholder="0"></div></label>
-          <button class="qrbtn" id="fetchFare" type="button">✈️ Fetch cheapest fare</button>
-          <span class="assume-note" id="fareNote" style="margin:0"></span>
-        </div>
-        <div class="modecompare" id="modeCompare"></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<div class="toolbar">
-  <div class="wrap">
-    <div class="filter-row" id="themeRow"><span class="flabel">Theme</span></div>
-    <div class="filter-row">
-      <span class="flabel">Refine</span>
-      <button class="chip type" data-type="SIG" aria-pressed="false">Signature</button>
-      <button class="chip type" data-type="GEM" aria-pressed="false">Hidden gem</button>
-      <button class="chip type" data-type="OFF" aria-pressed="false">Off-beat</button>
-      <button class="chip age" data-age="little" aria-pressed="false">Great for age 5</button>
-      <button class="chip age" data-age="older" aria-pressed="false">Best for 9–10</button>
-      <input class="search" id="search" type="search" placeholder="Search attractions, e.g. manatee, fossil, splash…" aria-label="Search attractions">
-    </div>
-    <div class="filter-row" style="gap:14px">
-      <span class="count" id="count"></span>
-      <button class="reset" id="reset">Clear all filters</button>
-    </div>
-  </div>
-</div>
-
-<section id="library" style="padding-top:26px">
-  <div class="wrap">
-    <div class="sec-head"><span class="sec-num">03</span><h2>The Attraction Library</h2></div>
-    <p class="sec-desc">Every logged attraction, tagged by theme and flagged <b>Signature</b> (marquee), <b>Solid</b>, <b>Hidden gem</b>, or <b>Off-beat</b>, with an age read for the girls. Filter by theme above to plan a trip around what they're into this season. Each city also carries <b>Check events →</b> links — Time Out–style guides, official calendars, and family-event sites that open live in a new tab, so you can see what's on for a specific weekend.</p>
-    <div id="cities"></div>
-    <div class="empty" id="empty">No attractions match those filters. <button class="reset" id="reset2" style="font-size:14px">Clear filters</button></div>
-  </div>
-</section>
-
-<section id="playbooks">
-  <div class="wrap">
-    <div class="sec-head"><span class="sec-num">04</span><h2>Destination Playbooks</h2></div>
-    <p class="sec-desc">Every hub distilled into one runnable day for a 5- and 9-year-old — a signature must-do, a rainy-day pivot, where to eat, where to base, and the one logistics tip that saves the trip. Anchored to real attractions from the library above.</p>
-    <div class="pb-grid" id="pbGrid"></div>
-  </div>
-</section>
-
-<section id="strategy" style="background:linear-gradient(180deg,transparent,#E3E7DC)">
-  <div class="wrap">
-    <div class="sec-head"><span class="sec-num">05</span><h2>Challenging the Tier List</h2></div>
-    <p class="sec-desc">The scour didn't just fill gaps — it changed the ranking. Here's where I'd revise the portfolio, and the calendar traps to plan around.</p>
-    <div class="split">
-      <div class="panel">
-        <h3>Re-tier recommendations</h3>
-        <p class="lead">Fresh-eyes moves based on what the research surfaced.</p>
-        <div class="rec"><span class="move add">Add</span><p><b>Atlanta</b> — glaringly absent, yet ~2h away with a top-5 world aquarium, Zoo Atlanta, Fernbank &amp; Stone Mountain. Make it a formal <b>hub</b> and Tier-1 mini-destination; it doubles as your Florida-route launch point.</p></div>
-        <div class="rec"><span class="move add">Add</span><p><b>Charleston</b> — hits walkability, food, beaches, history &amp; a sea-turtle-hospital aquarium better than several Tier-2 picks. Belongs in Tier 1–2.</p></div>
-        <div class="rec"><span class="move add">Add</span><p><b>Knoxville</b> — your gateway to the entire KY/OH corridor, and a real destination itself (Zoo Knoxville, Ijams, the Smokies 45 min on). Promote to a hub.</p></div>
-        <div class="rec"><span class="move up">Elevate</span><p><b>Huntsville</b> (from Tier 3) — Space &amp; Rocket Center + Cook Museum is the best science-and-engineering day in range, tailor-made for your 4th grader.</p></div>
-        <div class="rec"><span class="move up">Elevate</span><p><b>Columbus</b> (from Tier 3) — COSI + Jack Hanna's zoo + The Wilds safari out-punch Indianapolis for your themes.</p></div>
-        <div class="rec"><span class="move watch">Reconsider</span><p><b>Philadelphia</b> — at 9.5h it competes with closer, richer DC. Treat it as a <b>fly, not drive</b> trip, or pair it onto a DC itinerary rather than its own quarterly.</p></div>
-        <div class="rec"><span class="move watch">Note</span><p><b>St. Louis</b> earns its spot (City Museum + free world-class zoo), but its 9.5h drive <b>only works via the Chattanooga→Nashville chain</b> — name that dependency in its playbook.</p></div>
-      </div>
-      <div class="panel">
-        <h3>Verify before you book</h3>
-        <p class="lead">Timing flags the agents surfaced — check official sites near your dates.</p>
-        <div class="flag"><span class="cal">Nov 15–Mar 31</span><p><b>Crystal River manatee swims</b> only run in season. Off-season, Homosassa Springs' underwater "Fish Bowl" has manatees year-round.</p></div>
-        <div class="flag"><span class="cal">Oct 26 '26–<br>Mar 24 '27</span><p><b>Universal's Volcano Bay closed</b> for refurb — pivot to Aquatica if you're in Orlando that window.</p></div>
-        <div class="flag"><span class="cal">Thru mid-Jul '26</span><p><b>Nashville's Parthenon</b> closed for HVAC work — verify reopening; the free park around it stays open.</p></div>
-        <div class="flag"><span class="cal">2026 season</span><p><b>Savannah Bananas</b> use a ticket lottery and travel much of the year — confirm home dates and enter early.</p></div>
-        <div class="flag"><span class="cal">From Apr 29 '26</span><p><b>Rainbow Springs</b> headspring now requires reservations to enter.</p></div>
-        <div class="flag"><span class="cal">Location</span><p><b>Mote SEA</b> is the new Sarasota/UTC aquarium — the old City Island Mote is closed. Go to UTC.</p></div>
-        <div class="flag"><span class="cal">Age minimums</span><p><b>Discovery Cove dolphin swim</b> &amp; <b>Devil's Den snorkel</b> are 6+, sidelining your 5-year-old from that one activity (easy on-site alternatives exist).</p></div>
-        <div class="flag"><span class="cal">Seasonal</span><p>Most outdoor <b>water parks &amp; spring tubing</b> run ~late-May–early-Aug only. Confirm 2026 dates.</p></div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap">
-    <b>Hensel Family Adventure Atlas</b> — a living document. New scouts, playbooks &amp; lessons-learned fold in over time.<br>
-    <span style="font-size:12px">Drive times are approximate from Greenville, SC · verify seasonal hours &amp; tickets before booking.</span>
-  </div>
-</footer>
-
-<div class="toast" id="toast" role="status" aria-live="polite"></div>
-
+<div id="atlas-chrome"></div>
+<main id="app" class="wrap ac-main xp"></main>
 <script src="/atlas/atlas-core.js"></script>
 <script>
-const AD=Atlas.data, HOME=Atlas.HOME;
-const {dist,money,isoDate,fmtRange,copyText}=Atlas;
-const S=()=>Atlas.settings.get();
-// reads a DOM-only input (Trip Finder budget/nights, airfare); the travel assumptions live in Atlas.settings
-function num(id){return parseFloat(document.getElementById(id).value)||0;}
+Atlas.mountChrome('explore');
 
-// ---- render corridors ----
-function renderCorridors(){
-const corEl=document.getElementById('corridors');
-corEl.innerHTML='';
-AD.COR.forEach(c=>{
-  const [title,tag,nodes,segs,branch]=c;
-  let route='';
-  nodes.forEach((n,i)=>{
-    route+=`<span class="node ${n[1]}"><span class="dot"></span>${n[0]}</span>`;
-    if(i<segs.length) route+=`<span class="seg">${segs[i]}</span>`;
+const esc = Atlas.esc;
+const state = { themes: new Set(), q: '', sort: 'near', visited: new Set() };
+let gridBound = false;
+
+// ---- helpers (all read Atlas.data at call time) ----
+function shortName(c) { return String(c).split(/ \/ | \(/)[0]; }
+
+// Corridor nodes are labels like "Columbus / Indy" or "NC Triangle"; map each to the CITIES keys it names.
+const NODE_ALIAS = { indy: 'Indianapolis', philly: 'Philadelphia' };
+function nodeCities(label) {
+  const names = Object.keys(Atlas.data.CITIES), out = [];
+  String(label).split(' / ').forEach(part => {
+    const p = part.trim().toLowerCase();
+    const hit = NODE_ALIAS[p] || names.find(n => n.toLowerCase().indexOf(p) !== -1);
+    if (hit && out.indexOf(hit) === -1) out.push(hit);
   });
-  corEl.insertAdjacentHTML('beforeend',
-    `<div class="corridor"><div class="cor-tag">${tag}</div><h3>${title}</h3>
-     <div class="route">${route}</div><div class="branch">${branch}</div></div>`);
-});
+  return out;
 }
 
-// ---- theme chips ----
-function renderThemeChips(){
-const themeRow=document.getElementById('themeRow');
-themeRow.innerHTML='';
-Object.entries(AD.THEMES).forEach(([k,v])=>{
-  themeRow.insertAdjacentHTML('beforeend',
-    `<button class="chip theme" data-theme="${k}" aria-pressed="false">
-       <span class="swatch" style="background:${v[1]}"></span>${v[0]}</button>`);
-});
-bind('.chip.theme',state.themes,'theme');
-}
-
-// ---- render library ----
-let order=[];
-function renderLibrary(){
-document.getElementById('totCount').textContent=AD.A.length;
-const citiesEl=document.getElementById('cities');
-citiesEl.innerHTML='';
-order=Object.keys(AD.CITIES);
-order.forEach(city=>{
-  const meta=AD.CITIES[city];
-  const items=AD.A.filter(a=>a[1]===city);
-  let cards='';
-  items.forEach(a=>{
-    const [name,,tags,type,age,why]=a;
-    const tagHtml=tags.split(',').map(t=>
-      `<span class="tg" style="background:${AD.THEMES[t][1]}">${AD.THEMES[t][0]}</span>`).join('');
-    const ageLabel=age==='both'?'Ages 5 & 9–10':age==='older'?'Best 9–10':'Great at 5';
-    const priceHtml=AD.PRICES[name]
-      ?`<div class="price">${AD.PRICES[name]}</div>`
-      :`<div class="price pending">— refresh to fetch</div>`;
-    cards+=`<article class="card" data-tags="${tags}" data-type="${type}" data-age="${age}"
-       data-name="${name.toLowerCase()} ${why.toLowerCase()}">
-       <div class="card-top"><h4>${name}</h4><span class="badge ${type}">${
-         type==='SIG'?'Signature':type==='GEM'?'Hidden gem':type==='OFF'?'Off-beat':'Solid'}</span></div>
-       <p class="why">${why}</p>
-       <div class="card-tags">${tagHtml}<span class="age">${ageLabel}</span></div>
-       ${priceHtml}</article>`;
-  });
-  const dated=AD.PRICE_DATES[city];
-  const stamp=dated
-    ?`<span class="price-stamp fresh"><span class="dotp"></span>Prices as of ${dated}</span>`
-    :`<span class="price-stamp"><span class="dotp"></span>Prices not yet fetched</span>`;
-  const evs=AD.EVENTS[city]||[];
-  const evHtml=evs.length
-    ?`<div class="events"><span class="ev-lab">Check events →</span>${evs.map(e=>
-        `<a class="ev" href="${e.u}" target="_blank" rel="noopener" title="${e.d}">${e.n}</a>`).join('')}</div>`
-    :'';
-  citiesEl.insertAdjacentHTML('beforeend',
-    `<div class="city-block" data-city="${city}">
-       <div class="city-head"><h3>${city}</h3>
-         <div class="city-meta"><span class="spoke-tag">${AD.SPOKES[meta.spoke]}</span>
-           <span class="drive">${meta.drive} drive</span>
-           <span>${items.length} logged</span></div>
-         <div class="city-actions">${stamp}
-           <button class="updateBtn" data-city="${city}" title="Copy a refresh request to paste into Claude">
-             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-             Update prices</button></div>
-         <p class="overlook"><b>Most overlook →</b> ${meta.overlook}</p>
-         ${evHtml}
-         <div class="citybudget" data-city="${city}"></div></div>
-       <div class="grid">${cards}</div></div>`);
-});
-bindUpdateBtns();
-}
-
-// ---- filtering ----
-const state={themes:new Set(),types:new Set(),ages:new Set(),q:''};
-const countEl=document.getElementById('count');
-function apply(){
-  let shown=0;
-  document.querySelectorAll('.city-block').forEach(block=>{
-    let blockShown=0;
-    block.querySelectorAll('.card').forEach(card=>{
-      const tags=card.dataset.tags.split(',');
-      const okTheme=!state.themes.size||[...state.themes].some(t=>tags.includes(t));
-      const okType=!state.types.size||state.types.has(card.dataset.type);
-      const okAge=!state.ages.size||state.ages.has(card.dataset.age)||card.dataset.age==='both';
-      const okQ=!state.q||card.dataset.name.includes(state.q);
-      const vis=okTheme&&okType&&okAge&&okQ;
-      card.classList.toggle('dim',!vis);
-      if(vis){blockShown++;shown++;}
-    });
-    block.style.display=blockShown?'':'none';
-  });
-  countEl.textContent=`Showing ${shown} of ${AD.A.length} attractions`;
-  document.getElementById('empty').style.display=shown?'none':'block';
-}
-function bind(sel,set,attr){
-  document.querySelectorAll(sel).forEach(btn=>{
-    btn.addEventListener('click',()=>{
-      const v=btn.dataset[attr];
-      const on=btn.getAttribute('aria-pressed')==='true';
-      btn.setAttribute('aria-pressed',String(!on));
-      on?set.delete(v):set.add(v);
-      apply();
-    });
+function cityInfo() {
+  const D = Atlas.data, counts = {};
+  D.A.forEach(a => { counts[a[1]] = (counts[a[1]] || 0) + 1; });
+  return Object.keys(D.CITIES).map(c => {
+    const pb = D.PLAYBOOKS.find(p => p.city === c);
+    const themes = new Set(), attrNames = [];
+    D.A.forEach(a => { if (a[1] === c) { a[2].split(',').forEach(t => themes.add(t)); attrNames.push(a[0].toLowerCase()); } });
+    return { city: c, drive: D.CITIES[c].drive, miles: Math.round(Atlas.dist(Atlas.HOME, c)),
+      signature: pb ? pb.signature : '', n: counts[c] || 0, themes: themes, attrNames: attrNames };
   });
 }
-bind('.chip.type',state.types,'type');
-bind('.chip.age',state.ages,'age');
-document.getElementById('search').addEventListener('input',e=>{state.q=e.target.value.toLowerCase().trim();apply();});
-function reset(){
-  state.themes.clear();state.types.clear();state.ages.clear();state.q='';
-  document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed','false'));
-  document.getElementById('search').value='';apply();
-}
-document.getElementById('reset').addEventListener('click',reset);
-document.getElementById('reset2').addEventListener('click',reset);
 
-// ---- on-demand pricing hand-off ----
-// The page can't reach the internet (locked-down artifact), so "Update prices"
-// copies a ready-made request to the clipboard. Paste it to Claude, and it
-// researches current admission for that city and redeploys this same page.
-const toast=document.getElementById('toast');
-let toastT;
-function showToast(html){
-  toast.innerHTML=html;toast.classList.add('show');
-  clearTimeout(toastT);toastT=setTimeout(()=>toast.classList.remove('show'),4200);
-}
-function bindUpdateBtns(){
-document.querySelectorAll('.updateBtn').forEach(btn=>{
-  btn.addEventListener('click',async()=>{
-    const city=btn.dataset.city;
-    const msg=`Refresh pricing in my Family Adventure Atlas for ${city}: research current 2026–2027 `
-      +`admission for every attraction listed under ${city} (fill PRICES) and a typical family-of-four `
-      +`hotel nightly rate (set HOTELS["${city}"]), set PRICE_DATES["${city}"], and redeploy to the same URL.`;
-    let ok=false;
-    try{await navigator.clipboard.writeText(msg);ok=true;}
-    catch(e){
-      const ta=document.createElement('textarea');ta.value=msg;ta.style.position='fixed';
-      ta.style.opacity='0';document.body.appendChild(ta);ta.select();
-      try{ok=document.execCommand('copy');}catch(_){}document.body.removeChild(ta);
-    }
-    showToast(ok
-      ?`Copied a refresh request for <b>${city}</b> — paste it to Claude to update prices.`
-      :`Ask Claude: <b>“Update prices for ${city}”</b> to refresh this city.`);
-  });
-});
-}
-
-// ---- budget engine ----
-// Distances are estimated from city coordinates (great-circle × 1.2 road factor),
-// so any route the builder assembles gets a mileage without a hand-built matrix.
-
-// ---- budget engine ----
-// The maths lives in atlas-core.js (Atlas.cityCost / tripCost / flyCost). Distances are
-// estimated from city coordinates (great-circle x 1.2 road factor).
-function recompute(){
-  document.querySelectorAll(".citybudget").forEach(el=>{
-    const c=Atlas.cityCost(el.dataset.city);
-    const est=c.hotelEstimated?`<span class="est">est</span>`:"";
-    el.innerHTML=`<span class="bb"><i>FUEL</i>RT ${Math.round(c.miles)}mi · <b>${money(c.fuel)}</b></span>`
-      +`<span class="bb"><i>HOTEL</i>${c.nights}n × ${money(c.hotelRate)}${est} · <b>${money(c.lodge)}</b></span>`
-      +`<span class="bb"><i>FOOD</i>${c.foodDays}d · <b>${money(c.food)}</b></span>`
-      +`<span class="bb tot"><i>BASE</i><b>${money(c.total)}</b> <small>+${c.pct}% buffer</small></span>`;
-  });
-  computeTrip();
-}
-
-// ---- trip builder ----
-let itin=[];
-let dragSrc=null;
-function renderQuickRoutes(){
-const qr=document.getElementById("quickroutes");
-qr.innerHTML=Object.keys(AD.PRESETS).map(k=>`<button class="qrbtn" data-r="${k}">${k}</button>`).join("");
-qr.querySelectorAll(".qrbtn").forEach(b=>b.addEventListener("click",()=>{
-  const n=Math.max(1,Math.round(S().nights));
-  itin=AD.PRESETS[b.dataset.r].map(c=>({city:c,nights:n}));renderItin();
-}));
-const sel=document.getElementById("addStop");
-sel.innerHTML=`<option value="">+ Add a stop…</option>`+order.map(c=>`<option>${c}</option>`).join("");
-sel.onchange=()=>{if(sel.value){const n=Math.max(1,Math.round(S().nights));
-  itin.push({city:sel.value,nights:n});sel.value="";renderItin();}};
-}
-
-function renderItin(){
-  const el=document.getElementById("itinerary");
-  if(!itin.length){el.innerHTML=`<div class="itin-empty">Pick a quick route above, or add stops one by one. Every trip starts and ends in Greenville.</div>`;computeTrip();return;}
-  let h=`<div class="itin-node home">Greenville<small>home</small></div>`;
-  itin.forEach((s,i)=>{
-    h+=`<div class="itin-leg">↓</div><div class="itin-stop" draggable="true" data-i="${i}">`
-      +`<span class="grip" title="Drag to reorder" aria-hidden="true">⠿</span>`
-      +`<span class="isc">${s.city}</span>`
-      +`<label>nights <input type="number" min="0" value="${s.nights}" data-i="${i}" class="nin"></label>`
-      +`<button class="rm" data-i="${i}" aria-label="Remove ${s.city}">✕</button></div>`;
-  });
-  h+=`<div class="itin-leg">↓</div><div class="itin-node home">Greenville<small>home</small></div>`;
-  el.innerHTML=h;
-  el.querySelectorAll(".nin").forEach(inp=>inp.addEventListener("input",e=>{
-    itin[+e.target.dataset.i].nights=Math.max(0,Math.round(parseFloat(e.target.value)||0));computeTrip();}));
-  el.querySelectorAll(".rm").forEach(b=>b.addEventListener("click",e=>{
-    itin.splice(+e.currentTarget.dataset.i,1);renderItin();}));
-  el.querySelectorAll(".itin-stop").forEach(st=>{
-    st.addEventListener("dragstart",e=>{
-      if(e.target.closest(".nin,.rm")){e.preventDefault();return;}
-      dragSrc=+st.dataset.i;st.classList.add("dragging");e.dataTransfer.effectAllowed="move";
-      try{e.dataTransfer.setData("text/plain",String(dragSrc));}catch(_){}
-    });
-    st.addEventListener("dragend",()=>{dragSrc=null;
-      el.querySelectorAll(".itin-stop").forEach(s=>s.classList.remove("dragging","drop-before","drop-after"));});
-    st.addEventListener("dragover",e=>{e.preventDefault();e.dataTransfer.dropEffect="move";
-      const r=st.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;
-      st.classList.toggle("drop-after",after);st.classList.toggle("drop-before",!after);});
-    st.addEventListener("dragleave",()=>st.classList.remove("drop-before","drop-after"));
-    st.addEventListener("drop",e=>{e.preventDefault();
-      if(dragSrc==null)return;
-      const r=st.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;
-      reorder(dragSrc,after?(+st.dataset.i)+1:(+st.dataset.i));});
-  });
-  computeTrip();
-}
-function reorder(from,insert){
-  const [x]=itin.splice(from,1);
-  let t=insert>from?insert-1:insert;
-  t=Math.max(0,Math.min(itin.length,t));
-  itin.splice(t,0,x);renderItin();
-}
-function recommend(){
-  if(itin.length<2)return;
-  const nightsBy={};itin.forEach(s=>nightsBy[s.city]=s.nights);
-  itin=Atlas.recommendRoute(itin.map(s=>s.city)).map(c=>({city:c,nights:nightsBy[c]}));renderItin();
-}
-function computeTrip(){
-  const box=document.getElementById("tripSummary");
-  if(!itin.length){box.innerHTML="";const mc=document.getElementById("modeCompare");if(mc)mc.innerHTML="";return;}
-  const t=Atlas.tripCost(itin);
-  const {miles,fuel,lodge,totalNights,days,food:foodc,subtotal:sub,buffer:buf,pct,total:tot}=t;
-  const food=S().food;
-  box.innerHTML=
-    `<div class="ts-row"><span><i>DRIVING</i>${Math.round(miles).toLocaleString()} mi round trip · ${itin.length} stop${itin.length>1?"s":""}</span><b>${money(fuel)}</b></div>`
-   +`<div class="ts-row"><span><i>LODGING</i>${totalNights} night${totalNights===1?"":"s"}</span><b>${money(lodge)}</b></div>`
-   +`<div class="ts-row"><span><i>FOOD</i>${days} day${days===1?"":"s"} × ${money(food)}</span><b>${money(foodc)}</b></div>`
-   +`<div class="ts-row sub"><span>Subtotal</span><b>${money(sub)}</b></div>`
-   +`<div class="ts-row"><span><i>BUFFER</i>${pct}% contingency</span><b>${money(buf)}</b></div>`
-   +`<div class="ts-row total"><span>Trip base</span><b>${money(tot)}</b></div>`
-   +`<p class="ts-note">Base travel + lodging + food only. Add the attractions you choose on top — refresh each city's prices to fill those in.</p>`;
-  computeFly(t);
-  renderTripEvents();
-}
-// ---- trip finder ----
-// Generates candidate itineraries (each single destination + each preset), costs
-// every one with the SAME model as computeTrip, keeps those within budget, and
-// ranks them by number of stops (more to see) then by cost (cheaper first).
-let tfCandidates=[];
-function findTrips(){
-  tfCandidates=Atlas.findTrips({budget:num("tfBudget"),nights:num("tfNights")});
-  renderTfResults(S().buffer);
-}
-function renderTfResults(pct){
-  const box=document.getElementById("tfResults");if(!box)return;
-  if(!tfCandidates.length){
-    box.innerHTML=`<div class="tf-empty">No trips fit that budget with those assumptions. Try raising the budget, adding more nights, or planning fewer stops.</div>`;
-    return;
+function matches(info) {
+  if (state.themes.size && ![...state.themes].some(t => info.themes.has(t))) return false;
+  if (state.q) {
+    const q = state.q;
+    if (info.city.toLowerCase().indexOf(q) === -1 && !info.attrNames.some(n => n.indexOf(q) !== -1)) return false;
   }
-  box.innerHTML=tfCandidates.map((c,idx)=>{
-    const nper=c.nightsArr.join("+")+" night"+(c.N===1&&c.stops===1?"":"s");
-    return `<div class="tf-card">`
-      +`<div class="tf-top">${c.route.join(" → ")}</div>`
-      +`<div class="tf-meta">Greenville → ${c.route.join(" → ")} → Greenville</div>`
-      +`<div class="tf-meta">${nper} · ${c.N} night${c.N===1?"":"s"} · ${c.stops} stop${c.stops>1?"s":""} · ~${Math.round(c.miles).toLocaleString()} mi round trip</div>`
-      +`<div class="tf-cost">drive ${money(c.fuel)} · lodging ${money(c.lodge)} · food ${money(c.foodc)} · +${pct}%</div>`
-      +`<div class="tf-tot">Total <b>${money(c.tot)}</b></div>`
-      +`<div class="tf-head">≈ ${money(c.headroom)} left for attractions &amp; meals</div>`
-      +`<button class="qrbtn" data-tf="${idx}">Load into planner</button>`
-      +`</div>`;
-  }).join("");
+  return true;
 }
 
-// ---- drive vs fly comparison ----
-// Fly total swaps road fuel for: airfare (whole party) + a rental car (rate × trip
-// days) + local gas at the destination, keeping lodging/food/buffer the same so the
-// two modes are directly comparable.
-// Departure airports we'll fly from. GSP is home (no drive); ATL/CLT are bigger,
-// often cheaper hubs but you must drive there and back, so their fair cost includes
-// round-trip drive-to-airport fuel.
-function computeFly(trip){
-  const fc=document.getElementById("modeCompare");if(!fc)return;
-  const dep=(document.getElementById("depAirport")||{}).value||"GSP";
-  const f=Atlas.flyCost({stops:itin,dep,airfare:num("airfare"),trip});
-  const {far,airfare,toAirport,carRate,rental,localGas,flyTotal:flyTot,delta,winner:win}=f;
-  const o={fuel:trip.fuel,lodge:trip.lodge,foodc:trip.food,pct:trip.pct,days:trip.days,driveTot:trip.total};
-  const dest=far?`${dep}→${far.airport||'?'} · ${far.city}${far.airport?'':' (no airport)'}`:'';
-  const toBk=toAirport>0?` · drive to ${dep} ${money(toAirport)}`:'';
-  fc.innerHTML=
-    `<div class="mc-head">Drive vs Fly${dest?` <small>fly ${dest}</small>`:''}</div>`
-   +`<div class="mc-grid">`
-   +`<div class="mc-card${win==='drive'?' win':''}"><div class="mc-mode">🚗 Drive</div><div class="mc-tot">${money(o.driveTot)}</div>`
-     +`<div class="mc-bk">fuel ${money(o.fuel)} · lodging ${money(o.lodge)} · food ${money(o.foodc)} · +${o.pct}%</div></div>`
-   +`<div class="mc-card${win==='fly'?' win':''}"><div class="mc-mode">✈️ Fly</div><div class="mc-tot">${airfare>0?money(flyTot):'—'}</div>`
-     +`<div class="mc-bk">airfare ${airfare>0?money(airfare):'(enter)'}${toBk} · rental ${money(rental)} (${o.days}d×${money(carRate)}) · local gas ${money(localGas)} · lodging ${money(o.lodge)} · food ${money(o.foodc)} · +${o.pct}%</div></div>`
-   +`</div>`
-   +(airfare>0?`<div class="mc-verdict">${win==='fly'?'✈️ Flying':'🚗 Driving'} is cheaper by <b>${money(delta)}</b></div>`
-              :`<div class="mc-verdict muted">Pick a departure airport &amp; enter airfare — or ✈️ Fetch cheapest (checks GSP, ATL &amp; CLT).</div>`);
+function visibleCities() {
+  const list = cityInfo().filter(matches);
+  list.sort(state.sort === 'name' ? (a, b) => a.city.localeCompare(b.city) : (a, b) => a.miles - b.miles || a.city.localeCompare(b.city));
+  return list;
 }
-async function fetchAirfare(){
-  const note=document.getElementById("fareNote");
-  const far=Atlas.farthestStop(itin);
-  if(!far){note.textContent="Add a stop first.";return;}
-  if(!far.airport){note.textContent=`No airport mapped for ${far.city}.`;return;}
-  const sv=document.getElementById("tripStart").value;
-  if(!sv){note.textContent="Set a trip start date first.";return;}
-  const totalNights=itin.reduce((s,x)=>s+x.nights,0);
-  const p=sv.split("-").map(Number);const start=new Date(p[0],p[1]-1,p[2]);
-  const ret=new Date(start);ret.setDate(ret.getDate()+Math.max(1,totalNights));
-  const adults=Math.max(1,Math.round(S().adults)),kids=Math.max(0,Math.round(S().kids));
-  const gas=S().gas,mpg=S().mpg||25;
-  note.textContent="Searching GSP, ATL & CLT…";
-  try{
-    const results=await Promise.all(Atlas.DEP_OPTS.map(async([code])=>{
-      try{
-        const q=`/api/atlas/flights?from=${code}&to=${far.airport}&depart=${sv}&return=${isoDate(ret)}&adults=${adults}&children=${kids}`;
-        const r=await Atlas.fetch(q);const d=await r.json();
-        const cash=d&&d.bestCash&&d.bestCash.effectiveUsd;
-        return {code,cash:(typeof cash==="number"?cash:null),d};
-      }catch(_){return {code,cash:null};}
-    }));
-    const priced=results.filter(x=>x.cash!=null);
-    if(!priced.length){
-      const d0=(results[0]||{}).d;
-      if(d0&&d0.sources&&d0.sources.serpapi&&d0.sources.serpapi.configured===false&&d0.sources.kiwi&&d0.sources.kiwi.configured===false)
-        note.textContent="Live fares need SERPAPI_KEY (or KIWI_API_KEY) in Vercel — enter airfare manually.";
-      else note.textContent="No fares found — enter airfare manually.";
+
+// ---- map ----
+function drawMap() {
+  const host = document.getElementById('map');
+  if (!host) return;
+  const D = Atlas.data, P = D.COORDS, names = Object.keys(P);
+  const W = Math.max(280, Math.round(host.clientWidth || 720));
+  const narrow = W < 520;
+  const H = Math.round(Math.min(Math.max(W * 0.92, 300), 620));
+  const pad = narrow ? 30 : 44;
+  const lats = names.map(n => P[n][0]), lons = names.map(n => P[n][1]);
+  const latMin = Math.min.apply(null, lats), latMax = Math.max.apply(null, lats);
+  const lonMin = Math.min.apply(null, lons), lonMax = Math.max.apply(null, lons);
+  const k = Math.cos(((latMin + latMax) / 2) * Math.PI / 180);
+  const spanX = (lonMax - lonMin) * k, spanY = latMax - latMin;
+  const s = Math.min((W - 2 * pad) / spanX, (H - 2 * pad) / spanY);
+  const ox = (W - spanX * s) / 2, oy = (H - spanY * s) / 2;
+  const xy = n => [ox + (P[n][1] - lonMin) * k * s, oy + (latMax - P[n][0]) * s];
+  const f = v => Math.round(v * 10) / 10;
+
+  // corridor lines: home -> each node that names a known city
+  const lines = D.COR.map(c => {
+    const pts = [xy(Atlas.HOME)];
+    c[2].forEach(nd => { if (nd[1] === 'home') return; const cs = nodeCities(nd[0]); if (cs.length && P[cs[0]]) pts.push(xy(cs[0])); });
+    return `<polyline class="mp-line" points="${pts.map(p => f(p[0]) + ',' + f(p[1])).join(' ')}"/>`;
+  }).join('');
+
+  const shown = new Set(visibleCities().map(i => i.city));
+  const dotNames = Object.keys(D.CITIES).filter(c => P[c]);
+  const fs = narrow ? 11 : 12.5, R = narrow ? 6 : 7;
+  const dots = dotNames.map(c => ({ c: c, p: xy(c), lab: shortName(c), miles: Atlas.dist(Atlas.HOME, c) }));
+  const homeP = xy(Atlas.HOME);
+
+  // greedy label placement: try right, left, above, below; skip a label if every spot collides
+  const boxes = [];
+  const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  const dotBoxes = dots.map(d => ({ x: d.p[0] - R - 2, y: d.p[1] - R - 2, w: 2 * R + 4, h: 2 * R + 4 })).concat([{ x: homeP[0] - 12, y: homeP[1] - 12, w: 24, h: 24 }]);
+  const homeLab = 'Home';
+  const hw = homeLab.length * 8 + 4;
+  const hb = { x: homeP[0] + 12, y: homeP[1] - 8, w: hw, h: 16 };
+  boxes.push(hb);
+  const placed = {};
+  dots.slice().sort((a, b) => a.miles - b.miles).forEach(d => {
+    const w = d.lab.length * fs * 0.58 + 4, h = fs + 4, g = R + 4, x = d.p[0], y = d.p[1];
+    const cands = [
+      { x: x + g, y: y - h / 2, a: 'start', tx: x + g + 1 },
+      { x: x - g - w, y: y - h / 2, a: 'end', tx: x - g - 1 },
+      { x: x - w / 2, y: y - g - h, a: 'middle', tx: x, ty: y - g - 3 },
+      { x: x - w / 2, y: y + g, a: 'middle', tx: x, ty: y + g + fs - 1 }
+    ];
+    for (let i = 0; i < cands.length; i++) {
+      const c = cands[i], b = { x: c.x, y: c.y, w: w, h: h };
+      if (b.x < 2 || b.x + b.w > W - 2 || b.y < 2 || b.y + b.h > H - 2) continue;
+      if (boxes.some(o => hit(b, o))) continue;
+      if (dotBoxes.some((o, j) => dots[j] !== d && hit(b, o))) continue;
+      boxes.push(b); placed[d.c] = { a: c.a, tx: c.tx, ty: c.ty === undefined ? y + fs * 0.35 : c.ty };
       return;
     }
-    // pick the airport with lowest NET cost: fare + round-trip drive to that airport
-    priced.forEach(x=>{x.net=x.cash+Atlas.airportDriveFuel(x.code,gas,mpg);});
-    priced.sort((a,b)=>a.net-b.net);
-    const best=priced[0];
-    document.getElementById("depAirport").value=best.code;
-    document.getElementById("airfare").value=Math.round(best.cash);
-    const others=priced.slice(1).map(x=>`${x.code} ${money(x.cash)}`).join(" · ");
-    note.textContent=`Cheapest net: ${best.code} ${money(best.cash)}${Atlas.airportDriveFuel(best.code,gas,mpg)>0?" +drive":""} for ${adults+kids}${others?` · vs ${others}`:""}`;
-    computeTrip();
-  }catch(e){note.textContent="Fare lookup error — enter airfare manually.";}
-}
-// ---- trip event calendar ----
-// Once cities (and optionally a start date) are chosen, stamp each stop with its date
-// window and surface that city's event-calendar links, plus a copy-to-clipboard request.
-function renderTripEvents(){
-  const box=document.getElementById('tripEvents');
-  if(!itin.length){box.innerHTML='';return;}
-  const sv=document.getElementById('tripStart').value;
-  let start=null;
-  if(sv){const p=sv.split('-').map(Number);if(p[0])start=new Date(p[0],p[1]-1,p[2]);}
-  let cum=0;
-  const rows=itin.map(s=>{
-    const n=Math.max(0,s.nights);
-    let dateChip='',range='your trip dates',arrISO='',depISO='';
-    if(start){
-      const arr=new Date(start);arr.setDate(arr.getDate()+cum);
-      const dep=new Date(arr);dep.setDate(dep.getDate()+n);
-      range=fmtRange(arr,dep);
-      arrISO=isoDate(arr);depISO=isoDate(dep);
-      dateChip=`<span class="te-dates">${range}</span>`;
-    }
-    cum+=n;
-    const evs=AD.EVENTS[s.city]||[];
-    const links=evs.length
-      ? evs.map(e=>`<a class="ev" href="${e.u}" target="_blank" rel="noopener" title="${e.d}">${e.n}</a>`).join('')
-      : `<span class="te-note">No saved links — use Copy events request.</span>`;
-    // baked event research — each item carries an ISO date `d`; past events auto-drop
-    // on every page load (client-side prune), mirroring the scheduled refresh's pruning.
-    const fe=AD.TRIP_EVENTS[s.city];
-    let foundHtml='';
-    if(fe){
-      const now=new Date();
-      const todayISO=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-      const live=fe.items.filter(it=>!it.d||it.d>=todayISO);
-      const hidden=fe.items.length-live.length;
-      foundHtml=live.length
-        ? `<div class="te-found"><div class="te-found-head"><span>Events found for <b>${fe.window}</b></span>`
-            +`<span class="te-stamp">researched ${fe.foundNice}${hidden?` · ${hidden} past event${hidden>1?'s':''} hidden`:''}</span></div>`
-            +`<ul>${live.map(it=>`<li><b>${it.n}</b>${it.m?` — ${it.m}`:''}</li>`).join('')}</ul></div>`
-        : `<div class="te-found expired">Baked events for ${fe.window} have all passed — hit “Copy events request” to refresh them.</div>`;
-    }
-    const liveBtn=arrISO
-      ? `<button class="te-copy te-live-btn" data-city="${s.city}" data-start="${arrISO}" data-end="${depISO}">⚡ Load live events</button>`
-      : '';
-    return `<div class="te-stop"><div class="te-top"><span class="te-city">${s.city}</span>${dateChip}`
-      +`${liveBtn}<button class="te-copy" data-city="${s.city}" data-range="${range}">Copy events request</button></div>`
-      +`<div class="te-links">${links}</div>${foundHtml}<div class="te-live" data-city="${s.city}"></div></div>`;
+    placed[d.c] = { hidden: true, a: 'start', tx: x + g + 1, ty: y + fs * 0.35 };
+  });
+
+  const dotSvg = dots.map(d => {
+    const seen = state.visited.has(d.c), pl = placed[d.c];
+    const x = f(d.p[0]), y = f(d.p[1]);
+    const lbl = d.c + ', about ' + Atlas.data.CITIES[d.c].drive.replace('~', '') + ' drive' + (seen ? ', visited' : '');
+    const chk = seen ? `<path class="mp-chk" d="M${f(x - 3)} ${y} l2.2 2.4 l4 -4.6"/>` : '';
+    return `<a class="mp-dot${seen ? ' seen' : ''}${shown.has(d.c) ? '' : ' dim'}" href="${esc(Atlas.cityUrl(d.c))}" aria-label="${esc(lbl)}">`
+      + `<title>${esc(d.c)}</title><circle class="hit" cx="${x}" cy="${y}" r="${narrow ? 19 : 20}"/>`
+      + `<circle class="pt" cx="${x}" cy="${y}" r="${R}"/>${chk}`
+      + `<text class="mp-lab${pl.hidden ? ' hid' : ''}" style="font-size:${fs}px" x="${f(pl.tx)}" y="${f(pl.ty)}" text-anchor="${pl.a}">${esc(d.lab)}</text></a>`;
   }).join('');
-  const hint=start?'':`<p class="te-note" style="margin-bottom:12px">Set a <b>Trip start</b> date above to stamp each stop with its exact dates.</p>`;
-  box.innerHTML=`<div class="te-head">Event calendar for this trip</div>${hint}${rows}`;
-  box.querySelectorAll('.te-copy:not(.te-live-btn)').forEach(b=>b.addEventListener('click',async()=>{
-    const c=b.dataset.city,r=b.dataset.range;
-    const msg=`Find family-friendly events in ${c} for ${r}. Check the event-calendar links for ${c} in my `
-      +`Family Adventure Atlas (the Time Out–style guide, the official CVB calendar, and the family-event sites) `
-      +`and summarize what's on for those dates for two girls (ages 5 & 9).`;
-    const ok=await copyText(msg);
-    showToast(ok
-      ?`Copied an events request for <b>${c}</b> (${r}) — paste it to Claude.`
-      :`Ask Claude: <b>“What events are on in ${c} for ${r}?”</b>`);
-  }));
-  box.querySelectorAll('.te-live-btn').forEach(b=>b.addEventListener('click',()=>loadLiveEvents(b)));
-}
-// Pads a Date to YYYY-MM-DD for the /api/events call.
-// Calls the serverless events function and renders results under the stop.
-// On any failure it degrades gracefully to the Copy-events-request workaround,
-// so the atlas keeps working even offline or with the API down.
-async function loadLiveEvents(btn){
-  const c=btn.dataset.city,start=btn.dataset.start,end=btn.dataset.end;
-  const stop=btn.closest('.te-stop');
-  const out=stop?stop.querySelector('.te-live'):null;
-  if(!out)return;
-  const label=btn.textContent;
-  btn.disabled=true;btn.textContent='Searching…';
-  out.innerHTML=`<div class="te-note">Searching official calendars for <b>${c}</b>…</div>`;
-  try{
-    const r=await Atlas.fetch(`/api/atlas/events?city=${encodeURIComponent(c)}&start=${start}&end=${end}`);
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const data=await r.json();
-    const items=Array.isArray(data.items)?data.items:[];
-    if(!items.length){
-      out.innerHTML=`<div class="te-found"><div class="te-found-head"><span>No dated events found for <b>${c}</b></span>`
-        +`<span class="te-stamp">searched live ${data.researchedAt||''}</span></div>`
-        +`<div class="te-note">Nothing solid landed in your window — try the evergreen calendar links above.</div></div>`;
-    }else{
-      out.innerHTML=`<div class="te-found"><div class="te-found-head"><span>⚡ Live events for <b>${c}</b></span>`
-        +`<span class="te-stamp">searched live ${data.researchedAt||''}</span></div>`
-        +`<ul>${items.map(it=>{
-            const name=it.u?`<a href="${it.u}" target="_blank" rel="noopener">${it.n}</a>`:it.n;
-            return `<li><b>${name}</b>${it.m?` — ${it.m}`:''}</li>`;
-          }).join('')}</ul></div>`;
-    }
-    btn.textContent='↻ Refresh live events';
-  }catch(e){
-    out.innerHTML=`<div class="te-found expired">Couldn't reach the live events service. Use `
-      +`<b>“Copy events request”</b> above and paste it to Claude instead.</div>`;
-    btn.textContent=label;
-  }finally{
-    btn.disabled=false;
-  }
-}
-document.getElementById("tripStart").addEventListener("input",renderTripEvents);
-document.getElementById("tripStart").addEventListener("input",renderTripEvents);
-// Travel assumptions live in Atlas.settings (shared with every other Atlas page and saved on this device).
-const SETTING_IDS=Object.keys(Atlas.settings.defaults);
-SETTING_IDS.forEach(id=>{
-  const el=document.getElementById(id);
-  el.value=S()[id];
-  el.addEventListener("input",()=>Atlas.settings.set({[id]:el.value}));
-});
-Atlas.onSettings(s=>{
-  SETTING_IDS.forEach(id=>{const el=document.getElementById(id);if(el!==document.activeElement)el.value=s[id];});
-  recompute();
-});
-document.getElementById("airfare").addEventListener("input",computeTrip);
-document.getElementById("depAirport").addEventListener("change",computeTrip);
-document.getElementById("fetchFare").addEventListener("click",fetchAirfare);
 
-document.getElementById("recommendBtn").addEventListener("click",()=>{
-  if(itin.length<2){showToast("Add at least two stops, then I'll find the shortest loop.");return;}
-  const before=Atlas.tripMiles(itin);recommend();const after=Atlas.tripMiles(itin);
-  const saved=before-after;
-  showToast(saved>5
-    ?`Reordered to the shortest loop — about <b>${Math.round(after).toLocaleString()} mi</b> (saved ~${Math.round(saved)} mi).`
-    :`Already the shortest loop — about <b>${Math.round(after).toLocaleString()} mi</b>.`);
-});
-document.getElementById("clearTrip").addEventListener("click",()=>{itin=[];renderItin();});
+  const home = `<g class="mp-home"><circle class="pt" cx="${f(homeP[0])}" cy="${f(homeP[1])}" r="${R + 3}"/>`
+    + `<text class="mp-home-lab" x="${f(homeP[0] + 13)}" y="${f(homeP[1] + 4)}">${homeLab}</text></g>`;
 
-document.getElementById("tfGo").addEventListener("click",findTrips);
-document.getElementById("tfResults").addEventListener("click",e=>{
-  const btn=e.target.closest("[data-tf]");if(!btn)return;
-  const cand=tfCandidates[+btn.dataset.tf];if(!cand)return;
-  itin=cand.route.map((c,i)=>({city:c,nights:cand.nightsArr[i]}));
-  renderItin();
-  const target=document.getElementById("tripSummary")||document.getElementById("itinerary");
-  if(target)target.scrollIntoView({behavior:"smooth",block:"start"});
-});
-
-function renderPlaybooks(){
-  const g=document.getElementById('pbGrid');if(!g)return;
-  const row=(lab,val)=>`<div class="row"><span class="lab">${lab}</span><span class="val">${val}</span></div>`;
-  g.innerHTML=AD.PLAYBOOKS.map(p=>{
-    const drive=(AD.CITIES[p.city]&&AD.CITIES[p.city].drive)||'';
-    const day=p.perfectDay.map(s=>`<li><span class="pb-when">${s.when}</span><div><div class="pb-stop">${s.stop}</div><div class="pb-note">${s.note}</div></div></li>`).join('');
-    return `<article class="pb">
-      <div class="pb-head"><h3>${p.city}</h3><span class="pb-drive">${drive}</span></div>
-      <p class="pb-pitch">${p.pitch}</p>
-      <ul class="pb-day">${day}</ul>
-      <div class="pb-meta">
-        ${row('Signature','<b>'+p.signature+'</b>')}
-        ${row('Rainy day',p.rainyDay)}
-        ${row('Eat',p.foodStop)}
-        ${row('Stay',p.stayArea)}
-        ${row('Kid tip',p.kidTip)}
-      </div>
-    </article>`;
-  }).join('');
+  host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="group" `
+    + `aria-label="Map of ${dots.length} destinations around ${esc(Atlas.HOME)}. Each dot links to that place.">${lines}${home}${dotSvg}</svg>`;
 }
 
-// ---- render orchestration + backend hydration ----
-// renderAll() repaints every data-driven section from the current in-memory
-// data. It runs once at boot with the baked-in data (instant, offline-safe),
-// then again if the backend returns a fresh atlas.
-function renderAll(){
-  renderCorridors();
-  renderThemeChips();
-  renderLibrary();
-  renderQuickRoutes();
-  renderPlaybooks();
-  renderItin();
-  recompute();
-  apply();
+// ---- grid ----
+function cardHTML(i) {
+  const seen = state.visited.has(i.city);
+  return `<a class="xc${seen ? ' seen' : ''}" href="${esc(Atlas.cityUrl(i.city))}">`
+    + `<span class="xc-top"><h3>${esc(i.city)}</h3>${seen ? '<span class="xc-stamp">Been there</span>' : ''}</span>`
+    + `<span class="xc-meta">${esc(i.drive)} drive · ${i.miles} mi</span>`
+    + (i.signature ? `<span class="xc-tease"><b>Must-do</b>${esc(i.signature)}</span>` : '')
+    + `<span class="xc-n">${i.n} thing${i.n === 1 ? '' : 's'} to do</span></a>`;
 }
-// Render once now from the baked-in data (instant, offline-safe), then again if the
-// backend supplies a fresh atlas. Atlas.onData runs the callback now and after a hydrate.
-Atlas.onData(()=>{
-  renderAll();
-  if(!Atlas.hydrated)return;
-  // update masthead stats from live data
-  const cc=document.getElementById('cityCount');
-  if(cc)cc.textContent=Object.keys(AD.CITIES).filter(k=>!AD.CITIES[k].isHome).length||23;
-  const tc=document.getElementById('themeCount');
-  if(tc)tc.textContent=Object.keys(AD.THEMES).length||8;
-  const corc=document.getElementById('corridorCount');
-  if(corc&&AD.COR)corc.textContent=AD.COR.length||5;
-});
 
-// ---- nav active-state via IntersectionObserver ----
-(function(){
-  const links=document.querySelectorAll('.nav-link');
-  const ids=['network','budget','library','playbooks','strategy'];
-  const map={};ids.forEach(id=>{const a=document.querySelector(`.nav-link[href="#${id}"]`);if(a)map[id]=a;});
-  let active=null;
-  const io=new IntersectionObserver(entries=>{
-    entries.forEach(e=>{
-      if(e.isIntersecting&&e.intersectionRatio>=0.1){
-        const id=e.target.id;
-        if(active)active.classList.remove('active');
-        active=map[id];
-        if(active)active.classList.add('active');
-      }
+function drawGrid() {
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  const list = visibleCities(), total = Object.keys(Atlas.data.CITIES).length;
+  grid.innerHTML = list.length ? list.map(cardHTML).join('')
+    : `<p class="xp-empty">No place matches that. <button class="reset" type="button" data-act="clear">Clear filters</button></p>`;
+  const cnt = document.getElementById('count');
+  if (cnt) cnt.textContent = list.length === total ? `All ${total} places` : `${list.length} of ${total} places`;
+  drawMap();
+}
+
+function toggleTheme(k, btn) {
+  state.themes.has(k) ? state.themes.delete(k) : state.themes.add(k);
+  if (btn) btn.setAttribute('aria-pressed', String(state.themes.has(k)));
+  drawGrid();
+}
+function setSort(v) {
+  state.sort = v;
+  document.querySelectorAll('[data-sort]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sort === v)));
+  drawGrid();
+}
+function setQuery(q) { state.q = String(q || '').toLowerCase().trim(); drawGrid(); }
+function clearFilters() {
+  state.themes.clear(); state.q = '';
+  document.querySelectorAll('[data-theme]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  const s = document.getElementById('search'); if (s) s.value = '';
+  drawGrid();
+}
+
+// ---- corridor chains (secondary) ----
+function corridorsHTML() {
+  return Atlas.data.COR.map(c => {
+    const nodes = c[2], segs = c[3];
+    let route = '';
+    nodes.forEach((n, i) => {
+      const cs = n[1] === 'home' ? [] : nodeCities(n[0]);
+      const inner = `<span class="dot"></span>${esc(n[0])}`;
+      route += cs.length ? `<a class="node ${esc(n[1])}" href="${esc(Atlas.cityUrl(cs[0]))}">${inner}</a>` : `<span class="node ${esc(n[1])}">${inner}</span>`;
+      if (i < segs.length) route += `<span class="seg">${esc(segs[i])}</span>`;
     });
-  },{rootMargin:'-44px 0px -60% 0px',threshold:0.1});
-  ids.forEach(id=>{const el=document.getElementById(id);if(el)io.observe(el);});
-  // highlight the first link initially
-  if(map['network'])map['network'].classList.add('active');
-})();
-</script>
+    // c[4] (branch) is trusted HTML, intentionally not escaped
+    return `<div class="corridor"><div class="cor-tag">${esc(c[1])}</div><h3>${esc(c[0])}</h3><div class="route">${route}</div><div class="branch">${c[4]}</div></div>`;
+  }).join('');
+}
 
+// ---- page ----
+function render() {
+  const app = document.getElementById('app');
+  const themes = Atlas.data.THEMES;
+  const chips = Object.keys(themes).map(k =>
+    `<button class="chip" type="button" data-theme="${esc(k)}" aria-pressed="${state.themes.has(k)}">`
+    + `<span class="swatch" style="background:${themes[k][1]}"></span>${esc(themes[k][0])}</button>`).join('');
+  app.innerHTML = `<h1 class="page-title">Where to next?</h1>`
+    + `<p class="page-sub" style="margin-bottom:14px">Tap a place to see what is there.</p>`
+    + `<div class="xp-map" id="map"></div>`
+    + `<div class="xp-legend"><span><i class="h"></i>Home</span><span><i></i>Not yet</span><span><i class="v"></i>Been there</span><span>Dotted lines are the driving routes</span></div>`
+    + `<section class="xp-find" aria-label="Find a place"><h2>Pick your kind of day</h2>`
+    + `<div class="xp-chips" role="group" aria-label="Filter by theme">${chips}</div>`
+    + `<div class="xp-bar"><input class="search" id="search" type="search" placeholder="Search places or things, e.g. manatee" aria-label="Search places and attractions" value="${esc(state.q)}">`
+    + `<div class="xp-sort" role="group" aria-label="Sort places">`
+    + `<button class="chip" type="button" data-sort="near" aria-pressed="${state.sort === 'near'}">Nearest</button>`
+    + `<button class="chip" type="button" data-sort="name" aria-pressed="${state.sort === 'name'}">A to Z</button></div></div>`
+    + `<p class="xp-count" id="count" role="status" aria-live="polite"></p>`
+    + `<div class="xp-grid" id="grid"></div></section>`
+    + `<details class="xp-more"><summary>How the stops chain together</summary><div class="corridors">${corridorsHTML()}</div></details>`;
+  if (!gridBound) {
+    gridBound = true;
+    app.addEventListener('click', e => {
+      const t = e.target && e.target.closest ? e.target : null; if (!t) return;
+      const th = t.closest('[data-theme]'), so = t.closest('[data-sort]'), cl = t.closest('[data-act="clear"]');
+      if (th) toggleTheme(th.dataset.theme, th); else if (so) setSort(so.dataset.sort); else if (cl) clearFilters();
+    });
+    app.addEventListener('input', e => { if (e.target && e.target.id === 'search') setQuery(e.target.value); });
+    let lastW = 0, tm;
+    window.addEventListener('resize', () => {
+      clearTimeout(tm);
+      tm = setTimeout(() => { const m = document.getElementById('map'); if (m && m.clientWidth !== lastW) { lastW = m.clientWidth; drawMap(); } }, 150);
+    });
+  }
+  state.q = state.q; // query already restored into the input
+  drawGrid();
+}
+
+Atlas.onData(render);
+
+// Visited marks are optional: any failure just leaves everything unvisited.
+Atlas.marks.list().then(rows => {
+  state.visited = new Set((rows || []).filter(r => r && r.visited).map(r => r.city));
+  if (state.visited.size) drawGrid();
+}).catch(() => {});
+</script>
 </body>
 </html>
