@@ -26,7 +26,9 @@
 //   ANTHROPIC_MODEL      optional model override (default claude-opus-5-5).
 //   TRAVEL_FALLBACKS     optional. Set to "off" to stop sending the server-side
 //                        refusal-fallback beta (on by default for models that support it).
-//   TRAVEL_MCP_SERVERS   optional JSON array of remote MCP servers the model may also use
+//   TRAVEL_MCP_SERVERS   optional. Unset: flights use Kiwi.com's public flight-search MCP server
+//                        (https://mcp.kiwi.com), hotels use web tools only. "off" disables MCP.
+//                        Otherwise a JSON array of remote MCP servers used for every task
 //                        (for example a hotel or flight search server you have verified):
 //                          [{"name":"hotels","url":"https://mcp.example.com/mcp","authorization_token":"..."}]
 //                        name: letters/digits/_/- (max 40); url: https only; authorization_token optional.
@@ -144,6 +146,22 @@ export function parseMcpServers(raw) {
   }
 }
 
+// Flights use Kiwi.com's public flight-search MCP server by default (no key needed;
+// verified 2026-11-27: `search-flight` takes flyFrom, flyTo, departureDate, returnDate,
+// adults, children, currency). Only that one tool is enabled.
+// TRAVEL_MCP_SERVERS replaces this list for every task; TRAVEL_MCP_SERVERS=off disables MCP.
+const DEFAULT_FLIGHT_MCP = [
+  { server: { type: "url", url: "https://mcp.kiwi.com", name: "kiwi" }, only: ["search-flight"] },
+];
+
+// Returns [{ server, only? }] for a task.
+export function mcpServersFor(task, raw = process.env.TRAVEL_MCP_SERVERS) {
+  const v = raw == null ? "" : String(raw).trim();
+  if (v.toLowerCase() === "off") return [];
+  if (v) return parseMcpServers(v).map((server) => ({ server }));
+  return task === "flights" ? DEFAULT_FLIGHT_MCP : [];
+}
+
 /* ------------------------------------------------------------------ prompt */
 
 function modelIsModern(model) {
@@ -193,7 +211,7 @@ Reply with exactly this JSON shape:
 ${JSON.stringify(req)}
 </request>
 
-Task: find up to 5 round-trip flight options from ${v.from} to ${v.toCity} departing ${v.depart} and returning ${v.return}, for ${v.adults} adults and ${v.kids} children (ages 5 and 9; ${party} paid seats, children need their own seats). Work out the right destination airport or airports for ${v.toCity} yourself, using the one closest to the city unless another is clearly cheaper and still practical. You may also include an option from a nearby alternative origin (ATL or CLT, a drive from Greenville) when it is clearly cheaper than ${v.from}; if you do, set "from" to that airport and describe it in "label" (for example "Alternative origin: Atlanta, about 2.5 hours' drive"). For ordinary options leave "label" as "". Favour sensible itineraries (fewer stops, reasonable times) over the absolute cheapest.
+Task: find up to 5 round-trip flight options from ${v.from} to ${v.toCity} departing ${v.depart} and returning ${v.return}, for ${v.adults} adults and ${v.kids} children (ages 5 and 9; ${party} paid seats, children need their own seats). Work out the right destination airport or airports for ${v.toCity} yourself, using the one closest to the city unless another is clearly cheaper and still practical. You may also include an option from a nearby alternative origin (ATL or CLT, a drive from Greenville) when it is clearly cheaper than ${v.from}; if you do, set "from" to that airport and describe it in "label" (for example "Alternative origin: Atlanta, about 2.5 hours' drive"). For ordinary options leave "label" as "". Favour sensible itineraries (fewer stops, reasonable times) over the absolute cheapest. If a flight-search tool is available, use it first: search with currency USD, the return date set, and all ${party} travellers as passengers, and use the booking link it returns as "url" with its site as "source". Check whether the price it reports covers the whole party or one traveller before filling in the two price fields, and say in "notes" if you are unsure. Use web search only to fill gaps or when the tool returns nothing.
 
 Reply with exactly this JSON shape:
 {"options":[{"airline":"airline name","from":"GSP","to":"BNA","depart":"${v.depart}","return":"${v.return}","stops":1,"duration":"3h 40m outbound","pricePerPerson":289,"priceTotal":1156,"label":"","url":"https://...","source":"site name where you found it"}],"notes":"one or two sentences of caveats a parent should know"}
@@ -356,13 +374,22 @@ async function research(v, today) {
       : { type: "web_fetch_20250910", name: "web_fetch", max_uses: 4 },
   ];
   const betas = [];
-  const mcp = parseMcpServers(process.env.TRAVEL_MCP_SERVERS);
+  const mcp = mcpServersFor(v.task);
   const extra = {};
+  const webToolCount = tools.length;
   if (mcp.length) {
     betas.push("mcp-client-2025-11-20");
-    extra.mcp_servers = mcp;
-    for (const s of mcp) tools.push({ type: "mcp_toolset", mcp_server_name: s.name });
+    extra.mcp_servers = mcp.map((m) => m.server);
+    for (const m of mcp) {
+      const toolset = { type: "mcp_toolset", mcp_server_name: m.server.name };
+      if (m.only) {
+        toolset.default_config = { enabled: false };
+        toolset.configs = Object.fromEntries(m.only.map((t) => [t, { enabled: true }]));
+      }
+      tools.push(toolset);
+    }
   }
+  let mcpOn = mcp.length > 0;
   if (supportsFallbacks(model)) {
     betas.push("server-side-fallback-2026-07-01");
     extra.fallbacks = "default";
@@ -395,6 +422,21 @@ async function research(v, today) {
       if (betas.length) params.betas = betas;
       const stream = client.beta.messages.stream(params, { signal: ctrl.signal, timeout: left, maxRetries: 0 });
       msg = await stream.finalMessage();
+    } catch (err) {
+      // If the very first request is rejected with MCP attached (bad request, or the
+      // MCP server is unreachable), drop MCP and carry on with web tools alone.
+      const status = err?.status;
+      if (mcpOn && turn === 0 && typeof status === "number" && status >= 400 && status < 500 && status !== 401 && status !== 403 && status !== 429) {
+        console.warn("travel-agent: MCP request rejected, retrying with web tools only:", status);
+        mcpOn = false;
+        tools.length = webToolCount;
+        delete extra.mcp_servers;
+        const i = betas.indexOf("mcp-client-2025-11-20");
+        if (i >= 0) betas.splice(i, 1);
+        turn--;
+        continue;
+      }
+      throw err;
     } finally {
       clearTimeout(timer);
     }
@@ -414,7 +456,7 @@ async function research(v, today) {
     break;
   }
 
-  console.info("travel-agent usage", JSON.stringify({ task: v.task, model, ms: Date.now() - started, ...usage, stop: final?.stop_reason }));
+  console.info("travel-agent usage", JSON.stringify({ task: v.task, model, mcp: mcpOn ? mcp.map((m) => m.server.name) : [], ms: Date.now() - started, ...usage, stop: final?.stop_reason }));
 
   if (final.stop_reason === "refusal")
     throw new HttpError(422, { error: "The travel agent declined this request. Try different dates or a different city." });

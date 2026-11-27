@@ -58,3 +58,17 @@ Each press is one model request per stop that has nights, plus one for flights, 
 - **Nothing is booked** and no payment details are handled.
 - Text from web pages and from the request is passed to the model as data, with instructions to ignore any instructions found in it. The page escapes everything it displays and only renders `http(s)` links, opening them in a new tab with `rel="noopener"`.
 - There is no per-user rate limit on the endpoint beyond the parent gate; if the key is shared widely, set a spend limit in the Anthropic console.
+
+## Flights use Kiwi.com's MCP server by default
+
+Since 2026-11-27 the `flights` task attaches Kiwi.com's public flight-search MCP server
+(`https://mcp.kiwi.com`, no key) with only its `search-flight` tool enabled, alongside web
+search. Hotels still use web tools only.
+
+- `TRAVEL_MCP_SERVERS` unset: the default above.
+- `TRAVEL_MCP_SERVERS=off`: no MCP servers for any task.
+- `TRAVEL_MCP_SERVERS=[{"name":"...","url":"https://..."}]`: replaces the default for every task.
+
+If the first request is rejected with MCP attached, the function retries once with web
+tools only, so a Kiwi outage degrades to the web-search behaviour. The `travel-agent usage`
+log line lists which MCP servers were attached.
