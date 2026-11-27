@@ -11,6 +11,7 @@ an Amazon Fire 10, while parents add and edit from their phones.
 - **Meal planning** — weekly breakfast/lunch/dinner/snack grid; tap any slot to fill it in
 - **Chore charts** — per-person weekly charts with star points, tap-to-complete, and weekly star totals
 - **Lists** — shared grocery and to-do lists with check-off and "clear done"
+- **Reading log** — a parent scans the ISBN barcode on library/owned books (or types it) and picks who is reading; kids tap *Finished!* on the shelf (works from the wall tablet) to earn stars; library due dates are flagged. Needs `supabase/migrations/20261126010000_reading_log.sql`
 - **Family profiles** — each member gets a name, emoji avatar, and color used across the app
 - **Family login** — viewing requires a signed-in account (the tablet uses a read-only display account); adding or changing anything requires a parent account
 - **Google Calendar sync** — link each member's (and the family's) Google Calendar via its secret iCal address; events appear color-coded and re-sync automatically every 10 minutes

@@ -527,6 +527,70 @@ textarea { resize: vertical; }
 .meal-line.has-recipe { cursor: pointer; border-radius: 10px; }
 .meal-line.has-recipe:active { background: var(--accent-soft); }
 
+/* ---------- Reading log ---------- */
+
+.reading-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.reading-card { min-width: 0; }
+.reading-sub { margin: 12px 0 6px; font-weight: 700; text-transform: uppercase; font-size: 13px; letter-spacing: 0.5px; }
+.book-row {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 10px 4px; border-bottom: 1px solid var(--line);
+}
+.book-row:last-child { border-bottom: none; }
+.book-row.soon { background: var(--accent-soft); border-radius: 12px; }
+.book-row.overdue { background: #fbe9e9; border-radius: 12px; }
+.book-cover {
+  position: relative; width: 56px; height: 84px; flex: 0 0 56px;
+  border-radius: 6px; overflow: hidden; background: var(--accent-soft); border: 1px solid var(--line);
+}
+.book-cover.lg { width: 72px; height: 108px; flex-basis: 72px; }
+.book-cover-text {
+  position: absolute; inset: 0; padding: 4px; display: flex; align-items: center; justify-content: center;
+  text-align: center; font-size: 10px; font-weight: 700; line-height: 1.15; color: var(--muted);
+  overflow: hidden; overflow-wrap: anywhere;
+}
+.book-cover-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #fff; }
+.book-info { flex: 1; min-width: 0; }
+.book-title { font-size: 17px; font-weight: 800; overflow-wrap: anywhere; }
+.book-author { font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+.book-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.book-pts { font-size: 13px; font-weight: 800; color: #b8860b; }
+.book-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+button.btn.book-finish { min-height: 48px; font-size: 18px; padding: 10px 22px; background: var(--green); }
+.book-win { font-size: 22px; padding: 14px; margin-bottom: 14px; }
+.book-due-title { font-weight: 600; font-size: 15px; overflow-wrap: anywhere; cursor: default !important; }
+
+/* Add-books scanner */
+.scan-cam {
+  position: relative; background: #000; border-radius: 14px; overflow: hidden;
+  height: min(34vh, 230px); margin-bottom: 12px;
+}
+.scan-cam video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-guide {
+  position: absolute; left: 12%; right: 12%; top: 30%; bottom: 30%;
+  border: 2px solid rgba(255, 255, 255, 0.85); border-radius: 10px; pointer-events: none;
+}
+.scan-msg {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 10px;
+  font-size: 13px; color: #fff; background: rgba(0, 0, 0, 0.55); text-align: center;
+}
+.scan-cam.off { height: auto; background: var(--accent-soft); }
+.scan-cam.off video, .scan-cam.off .scan-guide { display: none; }
+.scan-cam.off .scan-msg { position: static; background: none; color: var(--ink); font-size: 15px; padding: 14px; }
+.scan-note { color: var(--muted); font-size: 15px; margin-bottom: 10px; overflow-wrap: anywhere; }
+.scan-type { display: flex; gap: 8px; }
+.scan-type input { flex: 1; min-width: 0; }
+.book-card { border: 2px solid var(--accent); border-radius: 16px; padding: 12px; margin-bottom: 12px; }
+.who-btn { min-height: 48px; font-size: 17px; }
+.who-btn.on { border-color: currentColor; background: var(--accent-soft); }
+.who-btn.on::before { content: '✓'; font-weight: 800; }
+.scan-added-row { padding: 6px 2px; font-size: 15px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+
 /* ---------- Task photos ---------- */
 
 .task-thumb {
