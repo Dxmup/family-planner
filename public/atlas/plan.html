@@ -43,7 +43,21 @@
   .pl-grip{cursor:grab;color:var(--amber-deep);font-size:16px;user-select:none;flex:none;width:18px;text-align:center}
   .pl-name{flex:1 1 120px;min-width:0;font-weight:700;font-size:15px;color:var(--pine);text-decoration:none;display:flex;flex-direction:column;justify-content:center;min-height:40px}
   .pl-name small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--muted)}
-  .pl-name:hover span{text-decoration:underline}
+  a.pl-name:hover span{text-decoration:underline}
+  .pl-name.noa{cursor:default}
+  .pl-name span{overflow-wrap:anywhere}
+  .pl-tag{font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted)}
+  .pl-name .pl-tag{display:block}
+  .pl-free{min-height:64px;margin-top:10px}
+  .pl-rough{padding:8px 10px;border-radius:8px;background:#FBF3E2;border:1px solid var(--amber);color:var(--ink)}
+  .pl-pend{display:flex;flex-direction:column;gap:8px;margin:10px 0 0}
+  .pl-pick{border:1px solid var(--amber);background:#FBF3E2;border-radius:10px;padding:10px 12px;font-size:14px;overflow-wrap:anywhere}
+  .pl-pick p{margin:0 0 6px}
+  .pl-pickbtns{display:flex;flex-wrap:wrap;gap:8px}
+  .pl-pickbtns .qrbtn,.pl-pickbtns .linkbtn{min-height:40px;text-align:left;max-width:100%}
+  .pl-pickbtns .qrbtn{border-radius:14px}
+  .pl-lookup{min-height:0;margin:8px 0 0;font-size:14px;color:var(--pine);font-weight:600;overflow-wrap:anywhere}
+  .pl-lookup:empty{display:none}
   .pl-ctl{display:inline-flex;align-items:center;gap:4px}
   .pl-ctl button{min-width:40px;min-height:40px;border:1.5px solid var(--border);background:var(--card);color:var(--pine);border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;line-height:1}
   .pl-ctl button:hover:not([disabled]){border-color:var(--pine2)}
@@ -131,6 +145,7 @@ Atlas.mountChrome('plan');
     step: 0, draft: blank(), fare: { dep:'GSP', airfare:0 }, fareNote:'', fareBusy:false,
     saveErr:'', saving:false, done:false, msg:'', focus:null, focusHeading:false,
     tf: { budget:2000, nights:4, results:null, open:false }, dragIdx:null,
+    free: { text:'', busy:false, status:'', pending:[] },   // "Add any city": field text, lookup status, entries awaiting a choice
     rates: {},                                  // searched hotel rates for this draft: { city: {rate, name, source, url} }
     ag: { res:{}, needDate:'', origin:null }    // travel agent: per-request status, date prompt, flight origin pinned at search time
   };
@@ -140,10 +155,25 @@ Atlas.mountChrome('plan');
   function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
   function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
   function isDate(s){ return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+  // Atlas stops keep only {city, nights} (as always). A stop flagged custom is kept with its optional
+  // lat/lon, and every custom stop is registered with the core so costs can use it.
   function cleanStops(arr){
-    var C = Atlas.data.COORDS || {};
-    return (Array.isArray(arr) ? arr : []).filter(function(s){ return s && typeof s.city === 'string' && C[s.city]; })
-      .slice(0, MAX_STOPS).map(function(s){ return { city:s.city, nights:clampN(s.nights) }; });
+    var C = Atlas.data.COORDS || {}, out = [];
+    (Array.isArray(arr) ? arr : []).forEach(function(s){
+      if (!s || typeof s.city !== 'string') return;
+      if (C[s.city]) { out.push({ city:s.city, nights:clampN(s.nights) }); return; }
+      var name = s.city.trim().replace(/\s+/g, ' ');
+      if (s.custom !== true || !name || name.length > 80) return;
+      var st = { city:name, nights:clampN(s.nights) };
+      if (validPos(s.lat, s.lon)) { st.lat = s.lat; st.lon = s.lon; }
+      st.custom = true; out.push(st);
+    });
+    out = out.slice(0, MAX_STOPS);
+    Atlas.registerStops(out);
+    return out;
+  }
+  function validPos(lat, lon){
+    return typeof lat === 'number' && typeof lon === 'number' && isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
   }
   function clampN(n){ n = Math.round(parseFloat(n)); return isFinite(n) ? Math.min(30, Math.max(0, n)) : 0; }
   function loadDraft(){
@@ -171,7 +201,7 @@ Atlas.mountChrome('plan');
       var rj = JSON.parse(lsGet(RATES_KEY)), C = Atlas.data.COORDS || {};
       if (rj && typeof rj === 'object') Object.keys(rj).forEach(function(city){
         var r = rj[city], n = r && parseFloat(r.rate);
-        if (C[city] && n > 0 && n <= 5000) S.rates[city] = { rate:n, name:String(r.name || '').slice(0, 120), source:String(r.source || '').slice(0, 60),
+        if ((C[city] || d.stops.some(function(s){ return s.city === city; })) && n > 0 && n <= 5000) S.rates[city] = { rate:n, name:String(r.name || '').slice(0, 120), source:String(r.source || '').slice(0, 60),
           url:/^https?:\/\//i.test(r.url || '') ? String(r.url).slice(0, 800) : '' };
       });
     } catch(e){}
@@ -235,6 +265,254 @@ Atlas.mountChrome('plan');
     if (j < 0 || j >= a.length || i === j) return;
     a.splice(j, 0, a.splice(i, 1)[0]);
   }
+  // A place that is not in the Atlas: { city, lat?, lon? }. Stored as {city, nights, lat, lon, custom:true}.
+  function addCustomStop(p){
+    if (stops().length >= MAX_STOPS) return 'Trips are limited to ' + MAX_STOPS + ' stops.';
+    if (stops().some(function(s){ return s.city === p.city; })) return 'dup';
+    var st = { city:p.city, nights:clampN(Atlas.settings.get().nights) };
+    if (validPos(p.lat, p.lon)) { st.lat = Math.round(p.lat * 10000) / 10000; st.lon = Math.round(p.lon * 10000) / 10000; }
+    st.custom = true;
+    stops().push(st);
+    Atlas.addCustomCity(st.city, st);
+    return 'ok';
+  }
+
+  /* ---------- "Add any city": Open-Meteo geocoding (no key; only the city text is sent) ---------- */
+  var GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
+  var GEO_TIMEOUT = 8000, MAX_ENTRIES = 10;
+  var US_STATES = { AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California', CO:'Colorado', CT:'Connecticut', DE:'Delaware', DC:'District of Columbia',
+    FL:'Florida', GA:'Georgia', HI:'Hawaii', ID:'Idaho', IL:'Illinois', IN:'Indiana', IA:'Iowa', KS:'Kansas', KY:'Kentucky', LA:'Louisiana', ME:'Maine', MD:'Maryland',
+    MA:'Massachusetts', MI:'Michigan', MN:'Minnesota', MS:'Mississippi', MO:'Missouri', MT:'Montana', NE:'Nebraska', NV:'Nevada', NH:'New Hampshire', NJ:'New Jersey',
+    NM:'New Mexico', NY:'New York', NC:'North Carolina', ND:'North Dakota', OH:'Ohio', OK:'Oklahoma', OR:'Oregon', PA:'Pennsylvania', RI:'Rhode Island', SC:'South Carolina',
+    SD:'South Dakota', TN:'Tennessee', TX:'Texas', UT:'Utah', VT:'Vermont', VA:'Virginia', WA:'Washington', WV:'West Virginia', WI:'Wisconsin', WY:'Wyoming' };
+  var CA_PROVS = { AB:'Alberta', BC:'British Columbia', MB:'Manitoba', NB:'New Brunswick', NL:'Newfoundland and Labrador', NS:'Nova Scotia', NT:'Northwest Territories',
+    NU:'Nunavut', ON:'Ontario', PE:'Prince Edward Island', QC:'Quebec', SK:'Saskatchewan', YT:'Yukon' };
+  var COUNTRY_ALIAS = { us:'US', usa:'US', 'united states':'US', 'united states of america':'US', america:'US', uk:'GB', 'united kingdom':'GB', 'great britain':'GB', britain:'GB',
+    uae:'AE', holland:'NL', 'south korea':'KR', korea:'KR', czechia:'CZ', 'czech republic':'CZ', 'new zealand':'NZ' };
+  // Names only used to recognise "Paris, France" style qualifiers; matching against results uses the API's own country field.
+  var COUNTRY_NAMES = ('Argentina|Australia|Austria|Bahamas|Barbados|Belgium|Belize|Bermuda|Bolivia|Brazil|Bulgaria|Cambodia|Canada|Chile|China|Colombia|Costa Rica|Croatia|Cuba|Cyprus|' +
+    'Czechia|Czech Republic|Denmark|Dominican Republic|Ecuador|Egypt|El Salvador|England|Estonia|Fiji|Finland|France|Germany|Ghana|Greece|Guatemala|Honduras|Hungary|Iceland|India|' +
+    'Indonesia|Ireland|Israel|Italy|Jamaica|Japan|Jordan|Kenya|Korea|Latvia|Lithuania|Malaysia|Malta|Mexico|Monaco|Morocco|Nepal|Netherlands|New Zealand|Nicaragua|Northern Ireland|' +
+    'Norway|Panama|Peru|Philippines|Poland|Portugal|Puerto Rico|Romania|Scotland|Singapore|Slovakia|Slovenia|South Africa|South Korea|Spain|Sweden|Switzerland|Taiwan|Tanzania|Thailand|' +
+    'Trinidad and Tobago|Turkey|Uganda|Ukraine|United Arab Emirates|United Kingdom|United States|Uruguay|Venezuela|Vietnam|Wales|Holland|Great Britain|America').split('|');
+  var ATLAS_STATE = { 'Atlanta':'GA', 'Chattanooga':'TN', 'Nashville':'TN', 'Huntsville':'AL', 'Knoxville':'TN', 'St. Louis':'MO', 'Louisville':'KY', 'Cincinnati':'OH', 'Columbus':'OH',
+    'Indianapolis':'IN', 'Washington DC':'DC', 'Williamsburg':'VA', 'Pittsburgh':'PA', 'Philadelphia':'PA', 'Savannah':'GA', 'Charleston':'SC', 'St. Augustine':'FL', 'Orlando':'FL',
+    'Tampa / St. Pete':'FL', 'Nature Coast (Crystal River)':'FL', 'Charlotte':'NC', 'Gatlinburg / Pigeon Forge':'TN', 'NC Triangle (Raleigh–Durham)':'NC' };
+  var ATLAS_ALIAS = { 'Washington DC':['washington', 'dc', 'district of columbia'], 'Tampa / St. Pete':['tampa bay', 'st petersburg'],
+    'NC Triangle (Raleigh–Durham)':['raleigh durham', 'research triangle', 'the triangle'], 'Philadelphia':['philly'], 'Indianapolis':['indy'], 'St. Louis':['stl'], 'Cincinnati':['cincy'] };
+  var geoCache = {};
+  // Lower case, no accents or punctuation, "saint" = "st".
+  function norm(s){
+    var t = String(s == null ? '' : s);
+    try { t = t.normalize('NFD').replace(/[̀-ͯ]/g, ''); } catch(e){}
+    return t.toLowerCase().replace(/[.’']/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/\bsaint\b/g, 'st').trim();
+  }
+  var STATE_NAMES = {}, COUNTRY_SET = {};
+  Object.keys(US_STATES).forEach(function(k){ STATE_NAMES[norm(US_STATES[k])] = 1; });
+  Object.keys(CA_PROVS).forEach(function(k){ STATE_NAMES[norm(CA_PROVS[k])] = 1; });
+  COUNTRY_NAMES.forEach(function(c){ COUNTRY_SET[norm(c)] = 1; });
+  Object.keys(COUNTRY_ALIAS).forEach(function(c){ COUNTRY_SET[c] = 1; });
+  // Is this whole piece a state / province / country (or an abbreviation of one)?
+  function isQualifier(piece){
+    var n = norm(piece), up = String(piece).trim().toUpperCase().replace(/\./g, '');
+    if (!n) return false;
+    if (/^[A-Z]{2}$/.test(up) && (US_STATES[up] || CA_PROVS[up])) return true;
+    return !!(STATE_NAMES[n] || COUNTRY_SET[n]);
+  }
+  // Text -> [{ raw, name, qual }]. Commas and new lines separate places, except that a state or country
+  // after a comma ("Paris, France", "Portland, ME") belongs to the place before it. A trailing qualifier
+  // with no comma ("Portland ME", "Kansas City Missouri") is split off too.
+  function parseEntries(text){
+    var out = [];
+    String(text == null ? '' : text).split(/[\n;]+/).forEach(function(line){
+      var prev = null;
+      line.split(',').forEach(function(part){
+        part = part.replace(/\s+/g, ' ').trim();
+        if (!part) return;
+        if (prev && !prev.qual && isQualifier(part)) { prev.qual = part; prev.raw += ', ' + part; return; }
+        prev = { raw:part, name:part, qual:'' };
+        out.push(prev);
+      });
+    });
+    out.forEach(function(e){
+      if (e.qual || isQualifier(e.name)) return;
+      var toks = e.name.split(' ');
+      for (var k = Math.min(3, toks.length - 1); k >= 1; k--) {
+        var tail = toks.slice(toks.length - k).join(' ');
+        if (isQualifier(tail)) { e.qual = tail; e.name = toks.slice(0, toks.length - k).join(' '); break; }
+      }
+    });
+    return out;
+  }
+  function atlasAliasMap(){
+    var map = {}, C = Atlas.data.CITIES || {};
+    function put(k, city){ k = norm(k); if (k && !map[k]) map[k] = city; }
+    Object.keys(C).forEach(function(city){
+      put(city, city);
+      city.split(/[\/()–]/).forEach(function(p){ put(p, city); });
+    });
+    Object.keys(ATLAS_ALIAS).forEach(function(city){ if (C[city]) ATLAS_ALIAS[city].forEach(function(a){ put(a, city); }); });
+    return map;
+  }
+  // Does a typed qualifier fit this Atlas city's state? (no qualifier always fits)
+  function qualFitsAtlas(qual, city){
+    if (!qual) return true;
+    var n = norm(qual), up = qual.trim().toUpperCase().replace(/\./g, ''), st = ATLAS_STATE[city];
+    if (COUNTRY_ALIAS[n] === 'US') return true;
+    if (!st) return false;
+    return up === st || n === norm(US_STATES[st]);
+  }
+  function atlasFor(entry){
+    var map = atlasAliasMap();
+    var whole = map[norm(entry.raw.replace(/,/g, ' '))];
+    if (whole) return whole;
+    var city = map[norm(entry.name)];
+    return city && qualFitsAtlas(entry.qual, city) ? city : null;
+  }
+  function qualMatches(q, r){
+    var n = norm(q), up = String(q).trim().toUpperCase().replace(/\./g, '');
+    var cc = String(r.country_code || '').toUpperCase(), a1 = norm(r.admin1), co = norm(r.country);
+    if (n === a1 || n === co) return true;
+    if (/^[A-Z]{2}$/.test(up) && US_STATES[up]) return cc === 'US' && norm(US_STATES[up]) === a1;
+    if (/^[A-Z]{2}$/.test(up) && CA_PROVS[up]) return cc === 'CA' && norm(CA_PROVS[up]) === a1;
+    return COUNTRY_ALIAS[n] ? COUNTRY_ALIAS[n] === cc : false;
+  }
+  // Keep only characters the travel agent accepts for a city (letters, spaces, . ' , -).
+  function cleanPlace(s){
+    var t = String(s == null ? '' : s).replace(/[^\p{L}\p{M} .'’,-]/gu, ' ').replace(/\s+/g, ' ').trim();
+    return /^\p{L}/u.test(t) ? t : t.replace(/^[^\p{L}]+/u, '');
+  }
+  // "Portland, Maine", "Montreal, Quebec", "Paris, France": region for US/Canada/UK/Australia, else country.
+  function displayName(r){
+    var name = cleanPlace(r.name), cc = String(r.country_code || '').toUpperCase();
+    var region = (['US', 'CA', 'GB', 'AU'].indexOf(cc) >= 0 ? r.admin1 : r.country) || r.country || r.admin1 || '';
+    var out = region ? name + ', ' + cleanPlace(region) : name;
+    if (out.length > 60 && r.country) out = name + ', ' + cleanPlace(r.country);
+    return out.length > 60 ? out.slice(0, 60).replace(/[ ,.-]+$/, '') : out;
+  }
+  function popText(r){ var p = Number(r.population); return p > 0 ? ' · pop. ' + (p >= 1e6 ? (p / 1e6).toFixed(1) + 'M' : p >= 1e3 ? Math.round(p / 1e3) + 'k' : p) : ''; }
+  async function geocode(name){
+    var key = norm(name);
+    if (geoCache[key]) return geoCache[key];
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function(){ ctrl.abort(); }, GEO_TIMEOUT) : null;
+    try {
+      // Only the city text goes out: no credentials, no referrer.
+      var r = await fetch(GEO_URL + '?name=' + encodeURIComponent(name) + '&count=5&language=en&format=json',
+        { signal:ctrl ? ctrl.signal : undefined, credentials:'omit', referrerPolicy:'no-referrer' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var j = await r.json();
+      var res = (j && Array.isArray(j.results) ? j.results : []).filter(function(x){
+        return x && typeof x.name === 'string' && validPos(x.latitude, x.longitude);
+      });
+      geoCache[key] = res; return res;
+    } finally { if (timer) clearTimeout(timer); }
+  }
+  function toPlace(r){ return { city:displayName(r), lat:r.latitude, lon:r.longitude, label:displayName(r) + popText(r) }; }
+  // One entry -> { kind:'atlas', city } | { kind:'one', place } | { kind:'many', places, note } | { kind:'none' } | { kind:'fail' }
+  async function resolveEntry(e){
+    var at = atlasFor(e);
+    if (at) return { kind:'atlas', city:at };
+    var name = cleanPlace(e.name).slice(0, 80);
+    if (name.length < 2) return { kind:'none' };
+    var results;
+    try { results = await geocode(name); } catch(err){ return { kind:'fail' }; }
+    if (!results.length) return { kind:'none' };
+    var exact = results.filter(function(r){ return norm(r.name) === norm(name); }), note = '';
+    if (!exact.length) return { kind:'many', places:results.map(toPlace), note:'No exact match. Closest places:' };
+    var c = exact;
+    if (e.qual) {
+      var m = exact.filter(function(r){ return qualMatches(e.qual, r); });
+      if (m.length === 1) return { kind:'one', place:toPlace(m[0]) };
+      if (m.length > 1) c = m; else note = 'Nothing matched “' + e.qual + '”. These share the name:';
+    } else if (c.length === 1) return { kind:'one', place:toPlace(c[0]) };
+    else {
+      // one place far bigger than every other (Paris, France vs Paris, Texas) is not a guess
+      var pops = c.map(function(r){ return Number(r.population) || 0; }).sort(function(x, y){ return y - x; });
+      if (pops[0] >= 100000 && pops[0] >= 20 * pops[1]) {
+        return { kind:'one', place:toPlace(c.filter(function(r){ return (Number(r.population) || 0) === pops[0]; })[0]) };
+      }
+    }
+    return { kind:'many', places:c.map(toPlace), note:note || 'Several places share that name. Pick one:' };
+  }
+  function titleCase(s){ return s === s.toLowerCase() ? s.replace(/(^|[ -])(\p{L})/gu, function(_, a, b){ return a + b.toUpperCase(); }) : s; }
+  function typedName(raw){ return titleCase(cleanPlace(raw)).slice(0, 60); }
+
+  async function addFromText(){
+    var f = S.free;
+    if (f.busy) return;
+    var field = document.getElementById('pl-free');
+    if (field && typeof field.value === 'string') f.text = field.value;
+    var entries = parseEntries(f.text);
+    if (!entries.length) { f.status = 'Type a city first.'; S.focus = ['#pl-free']; return render(); }
+    var cut = entries.length > MAX_ENTRIES;
+    entries = entries.slice(0, MAX_ENTRIES);
+    f.busy = true; f.status = 'Looking up ' + plural(entries.length, 'place') + '…'; render();
+    var results = await Promise.all(entries.map(function(e){ return resolveEntry(e).catch(function(){ return { kind:'fail' }; }); }));
+    var added = [], dups = [], pend = 0, full = '';
+    results.forEach(function(res, i){
+      var e = entries[i], r;
+      if (res.kind === 'atlas') {
+        r = addCity(res.city);
+        if (r === 'ok') added.push(res.city); else if (r === 'dup') dups.push(res.city); else if (r) full = r;
+      }
+      else if (res.kind === 'one') {
+        r = addCustomStop(res.place);
+        if (r === 'ok') added.push(res.place.city); else if (r === 'dup') dups.push(res.place.city); else full = r;
+      } else {
+        pend++;
+        f.pending.push({ raw:e.raw, kind:res.kind === 'many' ? 'pick' : 'miss', failed:res.kind === 'fail', note:res.note || '', options:res.places || [] });
+      }
+    });
+    f.busy = false; f.text = '';
+    f.status = [added.length ? 'Added ' + added.join(', ') + '.' : '', dups.length ? dups.join(', ') + (dups.length === 1 ? ' was' : ' were') + ' already in your trip.' : '',
+      pend ? 'Choose below for ' + plural(pend, 'place') + '.' : '', full, cut ? 'Only the first ' + MAX_ENTRIES + ' were used.' : ''].filter(Boolean).join(' ');
+    if (!f.status) f.status = 'Nothing to add.';
+    S.focus = pend ? ['[data-act="pick"]', '[data-act="pick-name"]', '#pl-free'] : ['#pl-free'];
+    changed();
+  }
+  function pickPending(pi, oi){
+    var p = S.free.pending[pi]; if (!p) return;
+    var place = oi == null ? { city:typedName(p.raw) } : p.options[oi];
+    if (!place || !place.city || place.city.length < 2) { S.free.status = 'That name could not be used.'; return render(); }
+    var r = addCustomStop(place);
+    S.free.pending.splice(pi, 1);
+    S.free.status = r === 'ok' ? 'Added ' + place.city + (validPos(place.lat, place.lon) ? '.' : ' (distance unknown).') : r === 'dup' ? place.city + ' is already in your trip.' : r;
+    S.focus = S.free.pending.length ? ['[data-act="pick"]', '[data-act="pick-name"]'] : ['#pl-free'];
+    changed();
+  }
+  function skipPending(pi){
+    var p = S.free.pending.splice(pi, 1)[0];
+    S.free.status = p ? 'Skipped ' + p.raw + '.' : '';
+    S.focus = S.free.pending.length ? ['[data-act="pick"]', '[data-act="pick-name"]'] : ['#pl-free'];
+    render();
+  }
+  function pendingHTML(){
+    if (!S.free.pending.length) return '';
+    return '<div class="pl-pend">' + S.free.pending.map(function(p, pi){
+      var head = '<p><b>' + E(p.raw) + '</b>: ';
+      if (p.kind === 'pick') {
+        return '<div class="pl-pick" role="group" aria-label="Pick a match for ' + E(p.raw) + '">' + head + E(p.note) + '</p><div class="pl-pickbtns">' + p.options.map(function(o, oi){
+          return '<button type="button" class="qrbtn" data-act="pick" data-p="' + pi + '" data-o="' + oi + '">' + E(o.label) + '</button>';
+        }).join('') + '<button type="button" class="qrbtn" data-act="pick-name" data-p="' + pi + '">Just use the name (distance unknown)</button>' +
+          '<button type="button" class="linkbtn" data-act="pick-skip" data-p="' + pi + '">Skip</button></div></div>';
+      }
+      return '<div class="pl-pick" role="group" aria-label="No match for ' + E(p.raw) + '">' + head + (p.failed ? 'the lookup did not work.' : 'no place found.') + ' You can still add it by name. Distance will be unknown, so driving leaves it out.</p>' +
+        '<div class="pl-pickbtns"><button type="button" class="qrbtn" data-act="pick-name" data-p="' + pi + '">Add by name (distance unknown)</button>' +
+        '<button type="button" class="linkbtn" data-act="pick-skip" data-p="' + pi + '">Skip</button></div></div>';
+    }).join('') + '</div>';
+  }
+
+  /* ---------- driving sanity notes ---------- */
+  function driveNotes(){
+    var a = stops(), out = '';
+    var leg = Atlas.longestLeg(a);
+    if (leg.miles > 900) out += '<p class="pl-note pl-rough">The driving figure is rough: the longest leg is about ' + E(Math.round(leg.miles).toLocaleString()) +
+      ' mi (straight line × 1.2, not a route). Over that distance, or across water, flying is likely the real comparison.</p>';
+    var unk = a.filter(function(s){ return !Atlas.hasCoords(s.city); }).map(function(s){ return s.city; });
+    if (unk.length) out += '<p class="pl-note pl-rough">Distance unknown for ' + E(unk.join(', ')) + ', so the driving cost leaves out fuel to get there.</p>';
+    return out;
+  }
 
   /* ---------- rendering ---------- */
   function stepperHTML(){
@@ -248,9 +526,11 @@ Atlas.mountChrome('plan');
     var a = stops(), D = Atlas.data;
     return a.map(function(s, i){
       var c = E(s.city), drive = D.CITIES[s.city] && D.CITIES[s.city].drive;
+      var nameEl = Atlas.isCustomStop(s)
+        ? '<span class="pl-name noa"><span>' + (i + 1) + '. ' + c + '</span><small class="pl-tag">not in the Atlas yet' + (Atlas.hasCoords(s.city) ? '' : ' · distance unknown') + '</small></span>'
+        : '<a class="pl-name" href="' + E(Atlas.cityUrl(s.city)) + '"><span>' + (i + 1) + '. ' + c + '</span>' + (drive ? '<small>' + E(drive) + ' from home</small>' : '') + '</a>';
       return '<li class="pl-stop" draggable="true" data-i="' + i + '">' +
-        '<span class="pl-grip" aria-hidden="true" title="Drag to reorder">⠿</span>' +
-        '<a class="pl-name" href="' + E(Atlas.cityUrl(s.city)) + '"><span>' + (i + 1) + '. ' + c + '</span>' + (drive ? '<small>' + E(drive) + ' from home</small>' : '') + '</a>' +
+        '<span class="pl-grip" aria-hidden="true" title="Drag to reorder">⠿</span>' + nameEl +
         '<span class="pl-ctl" role="group" aria-label="Nights in ' + c + '">' +
           '<button type="button" data-act="dec" data-i="' + i + '" aria-label="Fewer nights in ' + c + '"' + (s.nights <= 0 ? ' disabled' : '') + '>−</button>' +
           '<output>' + plural(s.nights, 'night') + '</output>' +
@@ -289,8 +569,13 @@ Atlas.mountChrome('plan');
       return '<button type="button" class="qrbtn" data-act="preset" data-k="' + E(k) + '">' + E(k) + '</button>';
     }).join('');
     var n = stops().length;
-    return '<h2 tabindex="-1" id="pl-h">Where to?</h2><p class="pl-help">Build your list of stops from any of these, then set nights for each.</p>' +
-      '<label class="sr-only" for="pl-city">Add a city</label><select class="pl-select" id="pl-city"><option value="">+ Add a city…</option>' + opts + '</select>' +
+    return '<h2 tabindex="-1" id="pl-h">Where to?</h2><p class="pl-help">Build your list of stops from the Atlas or any city you like, then set nights for each.</p>' +
+      '<label class="sr-only" for="pl-city">Add an Atlas city</label><select class="pl-select" id="pl-city"><option value="">+ Add an Atlas city…</option>' + opts + '</select>' +
+      '<label class="pl-lab" for="pl-free">Add any city</label>' +
+      '<textarea class="pl-area pl-free" id="pl-free" rows="2" maxlength="400" autocomplete="off" aria-describedby="pl-freehelp" placeholder="Savannah, Portland ME, Montreal">' + E(S.free.text) + '</textarea>' +
+      '<p class="pl-note" id="pl-freehelp" style="margin:6px 0 0">One city or several, separated by commas or new lines. Add a state or country to be exact, like Portland ME or Paris, France.</p>' +
+      '<div class="pl-actions" style="margin-top:8px"><button type="button" class="qrbtn solid pl-btn" data-act="addfree"' + (S.free.busy ? ' disabled' : '') + '>' + (S.free.busy ? 'Looking up…' : 'Add city') + '</button></div>' +
+      '<p class="pl-lookup" id="pl-lookup" role="status" aria-live="polite">' + E(S.free.status) + '</p>' + pendingHTML() +
       '<span class="pl-lab">Quick routes</span><div class="pl-presets">' + presets + '</div>' +
       suggestHTML() +
       (n ? '<ol class="pl-stops" id="pl-stops">' + stopRows() + '</ol>' : '<p class="pl-empty">No stops yet. Add a city above to begin.</p>') +
@@ -306,7 +591,8 @@ Atlas.mountChrome('plan');
         var arr = new Date(start); arr.setDate(arr.getDate() + cum);
         var dep = new Date(arr); dep.setDate(dep.getDate() + s.nights);
         cum += s.nights;
-        return '<li><a href="' + E(Atlas.cityUrl(s.city)) + '">' + E(s.city) + '</a><b>' + E(Atlas.fmtRange(arr, dep)) + '</b></li>';
+        var nm = Atlas.isCustomStop(s) ? '<span>' + E(s.city) + ' <small class="pl-tag">not in the Atlas yet</small></span>' : '<a href="' + E(Atlas.cityUrl(s.city)) + '">' + E(s.city) + '</a>';
+        return '<li>' + nm + '<b>' + E(Atlas.fmtRange(arr, dep)) + '</b></li>';
       }).join('') + '</ol>';
     }
     return '<h2 tabindex="-1" id="pl-h">When?</h2><p class="pl-help">Optional. Pick a start date to see dates for each stop, or leave it as someday.</p>' +
@@ -332,7 +618,7 @@ Atlas.mountChrome('plan');
     var verdict = f.airfare > 0
       ? '<p class="pl-verdict">' + (f.winner === 'fly' ? 'Flying' : 'Driving') + ' is cheaper by <b>' + E(money(f.delta)) + '</b>.</p>'
       : '<p class="pl-note" style="margin-top:10px">Enter a round-trip airfare for the whole party to compare. Driving is the default.</p>';
-    return (dest ? '<p class="pl-note">Fly ' + E(dest) + '</p>' : '') + '<div class="pl-modes" role="group" aria-label="Travel mode">' + drive + flyc + '</div>' + verdict;
+    return (dest ? '<p class="pl-note">Fly ' + E(dest) + '</p>' : '') + '<div class="pl-modes" role="group" aria-label="Travel mode">' + drive + flyc + '</div>' + verdict + driveNotes();
   }
   function howHTML(){
     var opts = Atlas.DEP_OPTS.map(function(o){
@@ -364,7 +650,7 @@ Atlas.mountChrome('plan');
     }
     var parent = Atlas.auth.parent;
     return '<h2 tabindex="-1" id="pl-h">Cost &amp; save</h2><p class="pl-help">Check the numbers, name the trip, and save it.</p>' +
-      '<div class="tripsummary">' + rows + '</div>' + ratesHTML() +
+      '<div class="tripsummary">' + rows + '</div>' + driveNotes() + ratesHTML() +
       (d.mode === 'fly' && f && f.airfare <= 0 ? '<p class="pl-note">No airfare entered, so this fly total leaves flights out. Add one in step 3.</p>' : '') +
       '<label class="pl-lab" for="pl-name">Trip name</label><input class="pl-text" id="pl-name" type="text" maxlength="80" value="' + E(d.name || autoName()) + '">' +
       '<label class="pl-lab" for="pl-notes">Notes (optional)</label><textarea class="pl-area" id="pl-notes" maxlength="2000">' + E(d.notes) + '</textarea>' +
@@ -693,7 +979,11 @@ Atlas.mountChrome('plan');
     var payload = {
       name: (d.name || autoName()).trim() || autoName(),
       start_date: d.start_date || null,
-      stops: stops().map(function(s){ return { city:s.city, nights:s.nights }; }),
+      stops: stops().map(function(s){
+        var o = { city:s.city, nights:s.nights };
+        if (s.custom === true) { if (validPos(s.lat, s.lon)) { o.lat = s.lat; o.lon = s.lon; } o.custom = true; }
+        return o;
+      }),
       mode: d.mode === 'fly' ? 'fly' : 'drive',
       est_cost: Math.round(x.total * 100) / 100,
       notes: d.notes || ''
@@ -756,6 +1046,10 @@ Atlas.mountChrome('plan');
       case 'ag-rate': return useRate(i, parseInt(b.getAttribute('data-o'), 10));
       case 'ag-fare': return useFare(i, parseInt(b.getAttribute('data-o'), 10));
       case 'ag-rate-clear': return clearRate(b.getAttribute('data-city') || null);
+      case 'addfree': return addFromText();
+      case 'pick': return pickPending(parseInt(b.getAttribute('data-p'), 10), parseInt(b.getAttribute('data-o'), 10));
+      case 'pick-name': return pickPending(parseInt(b.getAttribute('data-p'), 10), null);
+      case 'pick-skip': return skipPending(parseInt(b.getAttribute('data-p'), 10));
       case 'save': return save();
       case 'settings':
         var gear = document.querySelector('.ac-gear');
@@ -779,7 +1073,8 @@ Atlas.mountChrome('plan');
   });
   app.addEventListener('input', function(ev){
     var t = ev.target;
-    if (t.id === 'pl-name') { S.draft.name = t.value === autoName() ? '' : t.value; persist(); }
+    if (t.id === 'pl-free') S.free.text = t.value;
+    else if (t.id === 'pl-name') { S.draft.name = t.value === autoName() ? '' : t.value; persist(); }
     else if (t.id === 'pl-notes') { S.draft.notes = t.value; persist(); }
     else if (t.id === 'pl-fare') {
       S.fare.airfare = Math.max(0, parseFloat(t.value) || 0);
@@ -814,7 +1109,7 @@ Atlas.mountChrome('plan');
 
   function clearDraftState(){
     S.draft = blank(); S.fare = { dep:'GSP', airfare:0 }; S.fareNote = ''; S.saveErr = ''; S.msg = ''; S.step = 0; S.tf.results = null;
-    S.rates = {}; S.ag = { res:{}, needDate:'', origin:null };
+    S.rates = {}; S.ag = { res:{}, needDate:'', origin:null }; S.free = { text:'', busy:false, status:'', pending:[] };
     lsDel(DRAFT_KEY); lsDel(FARE_KEY); lsDel(RATES_KEY);
   }
 

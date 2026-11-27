@@ -803,7 +803,44 @@ let PLAYBOOKS=[
     var s = Math.sin(dLat / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dLon / 2) ** 2;
     return 2 * R * Math.asin(Math.sqrt(s));
   }
-  function dist(a, b) { return hav(data.COORDS[a], data.COORDS[b]) * 1.2; }
+  /* Custom cities (any place typed into a trip that is not in the Atlas). A registry kept apart from
+     Atlas.data on purpose: a successful hydrate replaces data.* wholesale, and this must survive it.
+     name -> { lat, lon } (both null when the place could not be located: "distance unknown"). */
+  var customCities = {};
+  function validLat(v) { return typeof v === "number" && isFinite(v) && v >= -90 && v <= 90; }
+  function validLon(v) { return typeof v === "number" && isFinite(v) && v >= -180 && v <= 180; }
+  function addCustomCity(name, pos) {
+    name = String(name == null ? "" : name).trim().replace(/\s+/g, " ");
+    if (!name || name.length > 80) return null;
+    var hasPos = pos && validLat(pos.lat) && validLon(pos.lon);
+    if (hasPos) customCities[name] = { lat: pos.lat, lon: pos.lon };
+    else if (!customCities[name]) customCities[name] = { lat: null, lon: null };
+    return customCities[name];
+  }
+  // Register the custom stops of a trip or draft ({city, nights, lat?, lon?, custom?}). Returns how many.
+  function registerStops(stops) {
+    var n = 0;
+    (Array.isArray(stops) ? stops : []).forEach(function (s) {
+      if (s && s.custom === true && typeof s.city === "string" && addCustomCity(s.city, s)) n++;
+    });
+    return n;
+  }
+  // [lat, lon] for the home city, an Atlas city, or a registered custom city; null when unknown.
+  // Atlas data wins over the registry.
+  function coords(city) {
+    var c = data.COORDS && Object.prototype.hasOwnProperty.call(data.COORDS, city) ? data.COORDS[city] : null;
+    if (c) return c;
+    var u = Object.prototype.hasOwnProperty.call(customCities, city) ? customCities[city] : null;
+    return u && validLat(u.lat) && validLon(u.lon) ? [u.lat, u.lon] : null;
+  }
+  function hasCoords(city) { return !!coords(city); }
+  // A stop the Atlas does not know: flagged custom and not (now) an Atlas city.
+  function isCustomStop(s) { return !!(s && s.custom === true && !(data.CITIES && data.CITIES[s.city])); }
+  // Estimated road miles. 0 when either end has no coordinates (callers that care check hasCoords).
+  function dist(a, b) {
+    var p = coords(a), q = coords(b);
+    return p && q ? hav(p, q) * 1.2 : 0;
+  }
   function money(n) { return "$" + Math.round(n).toLocaleString(); }
   function hotelRate(city) { return data.HOTELS[city] != null ? data.HOTELS[city] : settingsNow.hotel; }
   function isoDate(d) {
@@ -824,17 +861,31 @@ let PLAYBOOKS=[
     var rt = dist(HOME, city) * 2, fuel = rt / mpg * gas;
     var hr = hotelRate(city), lodge = hr * n, foodc = food * (n + 1);
     var tot = (fuel + lodge + foodc) * (1 + pct / 100);
-    return {
+    var out = {
       city: city, nights: n, miles: rt, fuel: fuel,
       hotelRate: hr, hotelEstimated: data.HOTELS[city] == null, lodge: lodge,
       foodDays: n + 1, food: foodc, pct: pct, total: tot
     };
+    if (!hasCoords(city)) out.distanceUnknown = true;   // key only present when true
+    return out;
   }
+  // Stops with no coordinates are skipped: they add no driving distance.
   function tripMiles(seq) {
-    var r = [HOME].concat((seq || []).map(function (c) { return typeof c === "string" ? c : c.city; }), [HOME]);
+    var r = [HOME].concat((seq || []).map(function (c) { return typeof c === "string" ? c : c.city; }).filter(hasCoords), [HOME]);
     var m = 0;
     for (var i = 1; i < r.length; i++) m += dist(r[i - 1], r[i]);
     return m;
+  }
+  // Longest single drive leg (estimated road miles) of the loop home -> stops -> home, skipping stops
+  // with no coordinates: { miles, from, to }. Pages use it to warn when the driving figure is rough.
+  function longestLeg(stops) {
+    var r = [HOME].concat((stops || []).map(function (c) { return typeof c === "string" ? c : c.city; }).filter(hasCoords), [HOME]);
+    var best = { miles: 0, from: HOME, to: HOME };
+    for (var i = 1; i < r.length; i++) {
+      var d = dist(r[i - 1], r[i]);
+      if (d > best.miles) best = { miles: d, from: r[i - 1], to: r[i] };
+    }
+    return best;
   }
   // What the old computeTrip() did: stops = [{city, nights}].
   // Optional second argument `opts.hotelRates = {city: nightlyUsd}` overrides the nightly rate for
@@ -856,22 +907,29 @@ let PLAYBOOKS=[
     var totalNights = stops.reduce(function (t, x) { return t + x.nights; }, 0);
     var days = totalNights + 1, foodc = food * days;
     var sub = fuel + lodge + foodc, buf = sub * pct / 100, tot = sub + buf;
-    return {
+    var res = {
       stops: stops.map(function (x) {
         var o = ovRate(x.city), r = o != null ? o : hotelRate(x.city);
         var row = { city: x.city, nights: x.nights, hotelRate: r, lodge: r * x.nights,
                     hotelEstimated: o != null ? false : data.HOTELS[x.city] == null };
         if (o != null) row.hotelOverride = true;
+        if (!hasCoords(x.city)) row.distanceUnknown = true;
         return row;
       }),
       miles: miles, fuel: fuel, lodge: lodge, totalNights: totalNights, days: days, food: foodc,
       subtotal: sub, buffer: buf, pct: pct, total: tot, gas: gas, mpg: mpg
     };
+    // Only present when some stop has no coordinates (its driving distance is left out of miles/fuel).
+    if (stops.some(function (x) { return !hasCoords(x.city); })) res.distanceUnknown = true;
+    return res;
   }
   // Nearest-neighbour from home, then 2-opt (the loop returns home). Takes and returns city names.
   function recommendRoute(cities) {
     var pool = (cities || []).map(function (c) { return typeof c === "string" ? c : c.city; });
-    if (pool.length < 2) return pool;
+    // Places with no coordinates cannot be ordered by distance: keep them, in the order given, at the end.
+    var unplaced = pool.filter(function (c) { return !hasCoords(c); });
+    if (unplaced.length) pool = pool.filter(hasCoords);
+    if (pool.length < 2) return pool.concat(unplaced);
     var seq = [], cur = HOME;
     while (pool.length) {
       var bi = 0, bd = Infinity;
@@ -886,7 +944,7 @@ let PLAYBOOKS=[
         if (tripMiles(cand) < tripMiles(seq) - 0.01) { seq = cand; improved = true; }
       }
     }
-    return seq;
+    return seq.concat(unplaced);
   }
 
   /* ---------- drive vs fly ---------- */
@@ -899,8 +957,12 @@ let PLAYBOOKS=[
   }
   function farthestStop(stops) {
     if (!stops || !stops.length) return null;
-    var best = null, bd = -1;
-    stops.forEach(function (s) { var d = dist(HOME, s.city); if (d > bd) { bd = d; best = s.city; } });
+    var best = null, bd = -1, nameless = null;
+    stops.forEach(function (s) {
+      if (!hasCoords(s.city)) { if (nameless == null) nameless = s.city; return; }
+      var d = dist(HOME, s.city); if (d > bd) { bd = d; best = s.city; }
+    });
+    if (!best) best = nameless;   // no stop has coordinates: fall back to the first one
     if (!best) return null;
     return { city: best, airport: (data.CITIES[best] && data.CITIES[best].airport) || null };
   }
@@ -916,11 +978,13 @@ let PLAYBOOKS=[
     var rental = carRate * o.days, localGas = localMi * o.days / (o.mpg || 25) * o.gas;
     var flyTot = (airfare + toAirport + rental + localGas + o.lodge + o.food) * (1 + o.pct / 100);
     var win = airfare > 0 ? (flyTot < o.total ? "fly" : "drive") : "";
-    return {
+    var out = {
       far: far, dep: dep, airfare: airfare, toAirport: toAirport, carRate: carRate, rental: rental,
       localGas: localGas, days: o.days, lodge: o.lodge, food: o.food, pct: o.pct,
       driveTotal: o.total, flyTotal: flyTot, winner: win, delta: Math.abs(o.total - flyTot)
     };
+    if (o.distanceUnknown) out.distanceUnknown = true;
+    return out;
   }
 
   /* ---------- trip finder ---------- */
@@ -1084,6 +1148,8 @@ let PLAYBOOKS=[
   Atlas.fetch = atlasFetch;
   Atlas.esc = esc;
   Atlas.hav = hav; Atlas.dist = dist; Atlas.money = money; Atlas.hotelRate = hotelRate;
+  Atlas.customCities = customCities; Atlas.addCustomCity = addCustomCity; Atlas.registerStops = registerStops;
+  Atlas.coords = coords; Atlas.hasCoords = hasCoords; Atlas.isCustomStop = isCustomStop; Atlas.longestLeg = longestLeg;
   Atlas.isoDate = isoDate; Atlas.fmtD = fmtD; Atlas.fmtRange = fmtRange;
   Atlas.cityCost = cityCost; Atlas.tripMiles = tripMiles; Atlas.tripCost = tripCost;
   Atlas.recommendRoute = recommendRoute; Atlas.flyCost = flyCost; Atlas.findTrips = findTrips;

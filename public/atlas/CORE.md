@@ -35,7 +35,26 @@ function render(){ document.getElementById('app').innerHTML = '...'; }
 - `/api/atlas/*` does not exist on the local server, so locally hydrate always fails and baked-in data stays. That is the normal local state.
 - Escaping: use `Atlas.esc(s)` for any data placed in HTML. Two data fields intentionally hold HTML and must NOT be escaped: the attraction `why` text in `A[i][5]` (some contain `<span class='warn'>`) and the corridor `branch` text in `COR[i][4]` (contains `<b>`). Everything else is plain text. Prices (`PRICES` values) are plain text.
 - `Atlas.HOME` is `"Greenville"`. `COORDS` has Greenville, but `CITIES` does not (CITIES keys are the 23 destinations).
-- Cost functions throw if a city has no `COORDS` entry (same as the original code).
+- Cost and routing functions never throw on an unknown city. A city is resolved from `Atlas.data.COORDS` first, then from the custom-city registry (below). A place with no coordinates at all adds no driving distance and the result says so (`distanceUnknown: true`, present only when true).
+
+## Custom cities (places that are not in the Atlas)
+
+A trip may include any city. Those stops are `{city: "Montreal, Quebec", nights, lat, lon, custom: true}` (`lat`/`lon` omitted when the place could not be located). They live in `Atlas.customCities`, a registry **separate from `Atlas.data`** so a hydrate (which replaces `data.*` wholesale) never drops them. Register them before computing anything: `Atlas.registerStops(trip.stops)` registers every stop flagged `custom: true`; the Plan and Trips pages do it when a draft or trip loads. Atlas data always wins over the registry if the same name exists in both.
+
+| Member | Behaviour |
+|---|---|
+| `Atlas.addCustomCity(name, {lat, lon})` | Registers (or updates) a place. Name is trimmed and whitespace-collapsed, at most 80 chars. Without valid coordinates (lat -90..90, lon -180..180) it is stored as unlocated. Returns the entry or `null` for an unusable name. |
+| `Atlas.registerStops(stops)` | Registers each stop with `custom === true`. Returns how many. |
+| `Atlas.coords(city)` | `[lat, lon]` for home, an Atlas city or a located custom city, else `null`. |
+| `Atlas.hasCoords(city)` | `coords(city) != null`. |
+| `Atlas.isCustomStop(stop)` | True for a stop flagged `custom` whose name is not an Atlas city. Pages use it to show the "not in the Atlas yet" tag and to skip the `city.html` link. |
+| `Atlas.longestLeg(stops)` | `{miles, from, to}`: the longest single leg of home → stops → home (estimated road miles, stops without coordinates skipped). Pages show a "driving is rough, flying is likely the real comparison" note when `miles > 900`. |
+
+Behaviour with custom stops:
+- `Atlas.dist(a, b)` returns `0` when either end has no coordinates (use `hasCoords` to tell). `tripMiles` skips stops without coordinates; `recommendRoute` keeps them, in the order given, at the end; `farthestStop` ignores them unless no stop has coordinates (then the first stop; `airport` is `null` for any non-Atlas city).
+- Lodging uses `settings.hotel` (custom cities are never in `HOTELS`; `hotelEstimated: true`) and honours the per-trip `hotelRates` override. Food and buffer are unchanged.
+- `cityCost` and `tripCost` add `distanceUnknown: true` (on `tripCost`, also on the affected `stops[i]`) only when something has no coordinates; `flyCost` passes it through. Results for Atlas-only trips are byte-for-byte what they were (Chattanooga 2, Nashville 3, St. Louis 1 is still $2,218.52 at default settings).
+- `findTrips` (budget finder) and the Explore map stay Atlas-only.
 
 ## `Atlas.*` surface
 
@@ -62,7 +81,7 @@ function render(){ document.getElementById('app').innerHTML = '...'; }
 | `Atlas.cityUrl(city)` | `"/atlas/city.html?c=" + encodeURIComponent(city)` |
 | `Atlas.esc(str)` | HTML-escape (`& < > " '`). `null`/`undefined` become `""`. |
 | `Atlas.hav(a, b)` | Great-circle miles between `[lat,lon]` pairs. |
-| `Atlas.dist(cityA, cityB)` | Estimated road miles (`hav * 1.2`) using `COORDS`. |
+| `Atlas.dist(cityA, cityB)` | Estimated road miles (`hav * 1.2`) using `COORDS` or the custom-city registry; `0` if either end is unknown. |
 | `Atlas.money(n)` | `"$1,234"` (rounded). |
 | `Atlas.hotelRate(city)` | Researched `HOTELS[city]` if present, else `settings.hotel`. |
 | `Atlas.isoDate(date)` | `"YYYY-MM-DD"` in local time. |
@@ -79,7 +98,7 @@ function render(){ document.getElementById('app').innerHTML = '...'; }
 
 Trip API errors: `Atlas.trips.*` and `Atlas.marks.*` throw `Error` with a readable `message` (server `error` text, or "Please sign in on the Planner first." for an anonymous 401, or "Could not reach the server..." on network failure). `err.status` holds the HTTP status when there was a response. Writes need a parent login; for non-parents the API answers 401 "Parent login required". Gate write buttons on `Atlas.auth.parent`.
 
-A `Trip` row is `{id, name, start_date: "YYYY-MM-DD"|null, stops: [{city, nights}], mode: "drive"|"fly", est_cost: number|null, notes: string, created_at}`. Server limits: name non-empty, at most 20 stops, nights integer 0-30, notes at most 2000 chars, est_cost non-negative.
+A `Trip` row is `{id, name, start_date: "YYYY-MM-DD"|null, stops: [{city, nights, lat?, lon?, custom?}], mode: "drive"|"fly", est_cost: number|null, notes: string, created_at, points_options?: object|null}`. Server limits: name non-empty, at most 20 stops, stop city at most 80 chars, nights integer 0-30, optional `lat` (-90..90) / `lon` (-180..180) (both or neither) and `custom` (boolean) per stop (other stop fields are dropped), notes at most 2000 chars, est_cost non-negative. `points_options` (award-flight options written by a local research tool; shape in `docs/atlas/points-options.md`) is `null` or a normalised object; it only exists once migration `20261127000000_trip_points_options.sql` is applied, so treat a missing key as "none".
 
 ## Data shapes (one real entry each)
 

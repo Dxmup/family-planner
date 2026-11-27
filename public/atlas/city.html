@@ -201,6 +201,14 @@ function updateRequest() {
 }
 
 function notFoundHTML() {
+  // A trip can include any city; one that is not in the Atlas has no page here yet.
+  let raw = '';
+  try { raw = (new URLSearchParams(location.search).get('c') || '').trim().slice(0, 80); } catch (e) {}
+  if (raw) {
+    return `<div class="ct-lost"><h1 class="page-title">${esc(raw)}</h1>`
+      + `<p class="page-sub" style="margin:0 auto 18px">This place is not in the Atlas yet, so there is no guide page for it. It can still be part of a trip.</p>`
+      + `<a class="qrbtn solid" href="/atlas/plan.html">Back to Plan</a> <a class="qrbtn" href="/atlas/index.html">Explore the Atlas</a></div>`;
+  }
   return `<div class="ct-lost"><h1 class="page-title">We don't know that place</h1>`
     + `<p class="page-sub" style="margin:0 auto 18px">Let's find somewhere on the map.</p>`
     + `<a class="qrbtn solid" href="/atlas/index.html">Back to Explore</a></div>`;
