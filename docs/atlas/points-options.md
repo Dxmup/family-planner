@@ -70,3 +70,22 @@ miles ("for the whole party"), taxes, cabin, airline and route, stops, transfer 
 `notes` and "found <date> on point.me / PointsYeah, check before booking". Parents also get "Clear points options"
 (with a confirm). With nothing stored, non-parents see nothing and parents see one quiet line saying the options appear
 after running the points check from Claude Code on the home PC. All text is escaped; only `http(s)` links render.
+
+## Manual flow (Trips page, parents only)
+
+No automation is involved; the owner uses his own logged-in browser. In an upcoming, dated trip's expanded detail:
+
+1. **Check points** shows what to search (From GSP, also try ATL and CLT; To the farthest stop, with an airport code only
+   when the Atlas data has one; depart and return dates; party size from the Atlas settings), each value with a Copy
+   button, plus "Open point.me" and "Open PointsYeah" buttons that open the sites in new tabs.
+2. **Add a points option** (collapsed form) saves what he found. He types miles and taxes **per person**; the page
+   multiplies by the party size, stores the **whole-party totals**, fills `depart`/`return` from the trip, adds a note
+   saying the totals are per-person figures times the party size, appends to the existing options (keeping `notes`)
+   and sends the whole `points_options` object with `PUT /api/trips/:id`. At 12 options it refuses to send.
+3. Each saved option has a **Remove** button (inline confirm). It writes the list without that option, or `null`
+   when nothing (no options and no notes) would be left.
+
+The two destination URL templates live in one constant, `POINTS_SITES`, at the top of the script in
+`public/atlas/trips.html`. Today they are just the sites' front doors. To get pre-filled searches, run a search on the
+site, copy the URL from the address bar, and replace the values with the placeholders `{from}`, `{to}`, `{depart}`,
+`{return}`, `{adults}`, `{children}` (substituted URL-encoded).
