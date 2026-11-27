@@ -83,6 +83,34 @@
   .pl-link{display:inline-block;min-height:40px;line-height:40px}
   .pl-parent{margin:14px 0 0;padding:12px;border-radius:10px;background:var(--paper);border:1px dashed var(--border);font-size:14px}
   .pl-save{width:100%;margin-top:14px;justify-content:center}
+  .ag{margin:18px 0 0;padding-top:14px;border-top:1px dashed var(--border)}
+  .ag h3{font-family:var(--serif);font-weight:600;font-size:20px;margin:0 0 2px}
+  .ag h4{font-family:var(--sans);font-size:15px;font-weight:700;color:var(--pine);margin:16px 0 6px;overflow-wrap:anywhere}
+  .ag h4 small{font-family:var(--mono);font-weight:400;font-size:11.5px;color:var(--muted)}
+  .ag-prog{list-style:none;margin:10px 0 0;padding:0;font-size:14px;color:var(--pine)}
+  .ag-prog li{padding:4px 0;overflow-wrap:anywhere}
+  .ag-prog li.wait{color:var(--muted)}
+  .ag-prog li:before{content:"";display:inline-block;width:10px;height:10px;margin-right:8px;border-radius:50%;border:2px solid var(--amber-deep);border-top-color:transparent;animation:agspin 1s linear infinite;vertical-align:-1px}
+  .ag-prog li.wait:before{animation:none;border-color:var(--border)}
+  @keyframes agspin{to{transform:rotate(360deg)}}
+  @media(prefers-reduced-motion:reduce){.ag-prog li:before{animation:none}}
+  .ag-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .ag-card{border:1px solid var(--border);border-radius:10px;background:var(--paper);padding:10px 12px;min-width:0}
+  .ag-top{display:flex;flex-wrap:wrap;justify-content:space-between;gap:2px 10px;align-items:baseline}
+  .ag-name{font-size:15px;color:var(--pine);overflow-wrap:anywhere;min-width:0}
+  .ag-price{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--amber-deep);white-space:nowrap}
+  .ag-price small{font-size:11px;font-weight:400;color:var(--muted)}
+  .ag-meta{font-size:12.5px;color:var(--muted);margin:2px 0 0;overflow-wrap:anywhere}
+  .ag-why{font-size:14px;margin:6px 0 0;overflow-wrap:anywhere}
+  .ag-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .ag-btns .qrbtn{min-height:40px;display:inline-flex;align-items:center;text-decoration:none}
+  .ag-notes{font-size:13px;margin:8px 0 0;padding:8px 10px;border-radius:8px;background:#FBF3E2;border:1px solid var(--amber);overflow-wrap:anywhere}
+  .ag-found{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+  .ag .pl-err .linkbtn,.ag .pl-err .qrbtn{min-height:40px;margin-top:6px}
+  .pl-ovr{margin:12px 0 0;padding:10px 12px;border-radius:10px;background:#F4F8F2;border:1px solid var(--pine2);font-size:14px}
+  .pl-ovr ul{list-style:none;margin:6px 0 0;padding:0}
+  .pl-ovr li{display:flex;flex-wrap:wrap;gap:2px 10px;align-items:center;justify-content:space-between;padding:2px 0;overflow-wrap:anywhere}
+  .pl-ovr .linkbtn{min-height:40px;text-decoration:underline;font-size:13px}
 </style>
 </head>
 <body>
@@ -94,7 +122,7 @@ Atlas.mountChrome('plan');
 (function(){
   var E = Atlas.esc, money = Atlas.money, app = document.getElementById('app');
   var STEPS = [['where','Where'],['when','When'],['how','How'],['save','Cost & save']];
-  var DRAFT_KEY = 'atlas_draft', FARE_KEY = 'atlas_draft_fare';
+  var DRAFT_KEY = 'atlas_draft', FARE_KEY = 'atlas_draft_fare', RATES_KEY = 'atlas_draft_rates';
   var MAX_STOPS = 20;
 
   /* ---------- state ---------- */
@@ -102,7 +130,9 @@ Atlas.mountChrome('plan');
   var S = {
     step: 0, draft: blank(), fare: { dep:'GSP', airfare:0 }, fareNote:'', fareBusy:false,
     saveErr:'', saving:false, done:false, msg:'', focus:null, focusHeading:false,
-    tf: { budget:2000, nights:4, results:null, open:false }, dragIdx:null
+    tf: { budget:2000, nights:4, results:null, open:false }, dragIdx:null,
+    rates: {},                                  // searched hotel rates for this draft: { city: {rate, name, source, url} }
+    ag: { res:{}, needDate:'', origin:null }    // travel agent: per-request status, date prompt, flight origin pinned at search time
   };
 
   /* ---------- storage (always guarded) ---------- */
@@ -136,20 +166,36 @@ Atlas.mountChrome('plan');
         S.fare = { dep: codes.indexOf(f.dep) >= 0 ? f.dep : 'GSP', airfare: Math.max(0, parseFloat(f.airfare) || 0) };
       }
     } catch(e){}
+    S.rates = {};
+    try {
+      var rj = JSON.parse(lsGet(RATES_KEY)), C = Atlas.data.COORDS || {};
+      if (rj && typeof rj === 'object') Object.keys(rj).forEach(function(city){
+        var r = rj[city], n = r && parseFloat(r.rate);
+        if (C[city] && n > 0 && n <= 5000) S.rates[city] = { rate:n, name:String(r.name || '').slice(0, 120), source:String(r.source || '').slice(0, 60),
+          url:/^https?:\/\//i.test(r.url || '') ? String(r.url).slice(0, 800) : '' };
+      });
+    } catch(e){}
     return d;
   }
   function persist(){
     if (S.done) return;
     lsSet(DRAFT_KEY, JSON.stringify(S.draft));
     lsSet(FARE_KEY, JSON.stringify(S.fare));
+    lsSet(RATES_KEY, JSON.stringify(S.rates));
   }
-  function clearDraft(){ S.done = true; lsDel(DRAFT_KEY); lsDel(FARE_KEY); }
+  function clearDraft(){ S.done = true; lsDel(DRAFT_KEY); lsDel(FARE_KEY); lsDel(RATES_KEY); }
 
   /* ---------- derived ---------- */
   function stops(){ return S.draft.stops; }
+  // Searched hotel rates that apply to the stops currently in the trip.
+  function ratesInUse(){
+    return stops().filter(function(s){ return S.rates[s.city] && S.rates[s.city].rate > 0; })
+      .map(function(s){ return { city:s.city, r:S.rates[s.city] }; });
+  }
+  function rateMap(){ var m = {}; ratesInUse().forEach(function(x){ m[x.city] = x.r.rate; }); return m; }
   function trip(){
     if (!stops().length) return null;
-    try { return Atlas.tripCost(stops()); } catch(e){ return null; }
+    try { return Atlas.tripCost(stops(), { hotelRates:rateMap() }); } catch(e){ return null; }
   }
   function fly(t){
     if (!t) return null;
@@ -298,27 +344,27 @@ Atlas.mountChrome('plan');
       '<div class="assume"><label for="pl-fare">Airfare, whole party</label><div class="ip"><span>$</span><input id="pl-fare" type="number" inputmode="decimal" step="10" min="0" placeholder="0" value="' + (S.fare.airfare > 0 ? E(S.fare.airfare) : '') + '"></div></div>' +
       '<button type="button" class="qrbtn pl-btn" data-act="fare"' + (S.fareBusy ? ' disabled' : '') + '>Look up fares</button></div>' +
       '<p class="pl-note" id="pl-farenote" role="status" aria-live="polite">' + E(S.fareNote) + '</p>' +
-      '<div id="pl-compare">' + compareHTML() + '</div>';
+      '<div id="pl-compare">' + compareHTML() + '</div>' + ratesHTML() + agentHTML();
   }
   function saveHTML(){
     var x = totals(), t = x.t, f = x.f, d = S.draft;
     if (!t) return '';
     function row(label, val, cls){ return '<div class="ts-row' + (cls ? ' ' + cls : '') + '"><span>' + label + '</span><b>' + E(money(val)) + '</b></div>'; }
-    var rows;
+    var rows, lodgeTag = ratesInUse().length ? ' · searched rates' : '';
     if (d.mode === 'fly' && f) {
       var sub = f.airfare + f.toAirport + f.rental + f.localGas + f.lodge + f.food;
       rows = row('Airfare' + (f.airfare > 0 ? '' : ' (not entered)'), f.airfare) +
         (f.toAirport > 0 ? row('Drive to ' + E(f.dep), f.toAirport) : '') +
         row('Rental car (' + plural(f.days, 'day') + ')', f.rental) + row('Local gas', f.localGas) +
-        row('Lodging (' + plural(t.totalNights, 'night') + ')', f.lodge) + row('Food (' + plural(f.days, 'day') + ')', f.food) +
+        row('Lodging (' + plural(t.totalNights, 'night') + ')' + lodgeTag, f.lodge) + row('Food (' + plural(f.days, 'day') + ')', f.food) +
         row('Subtotal', sub, 'sub') + row('Buffer (' + E(f.pct) + '%)', f.flyTotal - sub) + row('Total, flying', f.flyTotal, 'total');
     } else {
-      rows = row('Fuel (~' + Math.round(t.miles).toLocaleString() + ' mi)', t.fuel) + row('Lodging (' + plural(t.totalNights, 'night') + ')', t.lodge) +
+      rows = row('Fuel (~' + Math.round(t.miles).toLocaleString() + ' mi)', t.fuel) + row('Lodging (' + plural(t.totalNights, 'night') + ')' + lodgeTag, t.lodge) +
         row('Food (' + plural(t.days, 'day') + ')', t.food) + row('Subtotal', t.subtotal, 'sub') + row('Buffer (' + E(t.pct) + '%)', t.buffer) + row('Total, driving', t.total, 'total');
     }
     var parent = Atlas.auth.parent;
     return '<h2 tabindex="-1" id="pl-h">Cost &amp; save</h2><p class="pl-help">Check the numbers, name the trip, and save it.</p>' +
-      '<div class="tripsummary">' + rows + '</div>' +
+      '<div class="tripsummary">' + rows + '</div>' + ratesHTML() +
       (d.mode === 'fly' && f && f.airfare <= 0 ? '<p class="pl-note">No airfare entered, so this fly total leaves flights out. Add one in step 3.</p>' : '') +
       '<label class="pl-lab" for="pl-name">Trip name</label><input class="pl-text" id="pl-name" type="text" maxlength="80" value="' + E(d.name || autoName()) + '">' +
       '<label class="pl-lab" for="pl-notes">Notes (optional)</label><textarea class="pl-area" id="pl-notes" maxlength="2000">' + E(d.notes) + '</textarea>' +
@@ -406,6 +452,238 @@ Atlas.mountChrome('plan');
     S.fareBusy = false; render();
   }
 
+  /* ---------- travel agent (parents only; one model request per stop + one for flights) ---------- */
+  var AG_CACHE_KEY = 'atlas_agent_cache', AG_MAX = 3, AG_TIMEOUT = 75000, AG_KEEP = 30;
+  var agCache = {};                  // request key -> { data, at }
+  var agRun = { active: 0, queue: [] };
+  function ssGet(k){ try { return sessionStorage.getItem(k); } catch(e){ return null; } }
+  function ssSet(k, v){ try { sessionStorage.setItem(k, v); } catch(e){} }
+  function agLoadCache(){
+    try { var j = JSON.parse(ssGet(AG_CACHE_KEY)); if (j && typeof j === 'object' && !Array.isArray(j)) agCache = j; } catch(e){}
+  }
+  function agSaveCache(){
+    var keys = Object.keys(agCache);
+    if (keys.length > AG_KEEP) {
+      keys.sort(function(a, b){ return (agCache[a].at || 0) - (agCache[b].at || 0); }).slice(0, keys.length - AG_KEEP).forEach(function(k){ delete agCache[k]; });
+    }
+    ssSet(AG_CACHE_KEY, JSON.stringify(agCache));
+  }
+  function fnum(v){ return typeof v === 'number' && isFinite(v) ? v : null; }
+  function clampI(n, lo, hi){ n = Math.round(n); return isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo; }
+  function safeHref(u){ return typeof u === 'string' && /^https?:\/\//i.test(u) ? E(u) : ''; }
+  function agOrigin(){ return S.ag.origin || S.fare.dep; }
+
+  // The requests the current trip implies: flights first (so it starts at once), then one per stop with a night.
+  function agRequests(){
+    var sv = S.draft.start_date, a = stops();
+    if (!sv || !a.length) return [];
+    var st = Atlas.settings.get(), adults = clampI(st.adults, 1, 8), kids = clampI(st.kids, 0, 8);
+    var start = parseISO(sv), cum = 0, hotels = [], flight = null;
+    a.forEach(function(s){
+      if (s.nights > 0) {
+        var ci = new Date(start); ci.setDate(ci.getDate() + cum);
+        var co = new Date(ci); co.setDate(co.getDate() + s.nights);
+        var body = { task:'hotels', city:s.city, checkin:Atlas.isoDate(ci), checkout:Atlas.isoDate(co), adults:adults, kids:kids };
+        hotels.push({ kind:'hotels', city:s.city, body:body, key:JSON.stringify(body), ci:ci, co:co, nights:s.nights });
+      }
+      cum += s.nights;
+    });
+    var far = Atlas.farthestStop(a);
+    if (far) {
+      var ret = new Date(start); ret.setDate(ret.getDate() + Math.max(1, cum));
+      var fb = { task:'flights', from:agOrigin(), toCity:far.city, depart:sv, 'return':Atlas.isoDate(ret), adults:adults, kids:kids };
+      flight = { kind:'flights', city:far.city, body:fb, key:JSON.stringify(fb), ci:start, co:ret };
+    }
+    return (flight ? [flight] : []).concat(hotels);
+  }
+  function agState(r){
+    var x = S.ag.res[r.key];
+    if (x && (x.status === 'queued' || x.status === 'loading' || x.status === 'error')) return x.status;
+    return agCache[r.key] ? 'done' : 'idle';
+  }
+  function agLabel(r){
+    return r.kind === 'flights' ? 'flights ' + r.body.from + ' to ' + r.city : 'hotels in ' + r.city;
+  }
+  function agErr(status, data){
+    var msg = data && typeof data.error === 'string' ? data.error.slice(0, 200) : '';
+    if (status === 401) return { kind:'signedout', fatal:true, msg:'Please sign in on the Planner first, then try again.' };
+    if (status === 403) return { kind:'parents', fatal:true, msg:'Only parents can use the travel agent.' };
+    if (status === 503 && data && (data.detail === 'ANTHROPIC_API_KEY is not configured' || /not set up/i.test(msg)))
+      return { kind:'setup', fatal:true, msg:'The travel agent is not set up yet. A parent needs to add the Anthropic API key in the site settings.' };
+    if (!data && (status === 404 || status === 405)) return { kind:'unavailable', fatal:true, msg:'The travel agent is not available on this copy of the site. It runs on the live site.' };
+    if (status === 400) return { kind:'bad', retry:false, msg:msg || 'That search was not accepted. Check the trip dates and stops.' };
+    if (status === 422) return { kind:'declined', retry:true, msg:msg || 'The travel agent could not answer that search.' };
+    if (status === 429) return { kind:'busy', retry:true, msg:'The travel agent is busy right now. Wait a minute, then try again.' };
+    if (status === 504) return { kind:'timeout', retry:true, msg:'That search took too long. Try again.' };
+    return { kind:'upstream', retry:true, msg:'The travel agent ran into a problem. Try again.' };
+  }
+  function agPress(force){
+    if (!Atlas.auth.parent || !stops().length) return;
+    var sv = S.draft.start_date;
+    if (!sv) { S.ag.needDate = 'none'; return renderAgent(); }
+    if (sv < Atlas.isoDate(new Date())) { S.ag.needDate = 'past'; return renderAgent(); }
+    S.ag.needDate = '';
+    if (!S.ag.origin) S.ag.origin = S.fare.dep;
+    var run = [];
+    agRequests().forEach(function(r){
+      var st = agState(r);
+      if (st === 'loading' || st === 'queued') return;
+      if (force) { delete agCache[r.key]; run.push(r); }
+      else if (st !== 'done') run.push(r);
+    });
+    if (force) agSaveCache();
+    run.forEach(function(r){ S.ag.res[r.key] = { status:'queued' }; agRun.queue.push(r); });
+    agPump(); renderAgent();
+  }
+  function agPump(){
+    while (agRun.active < AG_MAX && agRun.queue.length) { agRun.active++; agSend(agRun.queue.shift()); }
+  }
+  async function agSend(r){
+    S.ag.res[r.key] = { status:'loading' }; renderAgent();
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function(){ ctrl.abort(); }, AG_TIMEOUT) : null;
+    var out;
+    try {
+      var resp = await Atlas.fetch('/api/atlas/agent', {
+        method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(r.body), signal:ctrl ? ctrl.signal : undefined
+      });
+      var data = null; try { data = await resp.json(); } catch(e){}
+      if (resp.ok && data && Array.isArray(data.options)) { agCache[r.key] = { data:data, at:Date.now() }; agSaveCache(); out = { status:'done' }; }
+      else out = { status:'error', err:agErr(resp.status, data) };
+    } catch(e) {
+      out = { status:'error', err:(e && e.name === 'AbortError')
+        ? { kind:'timeout', retry:true, msg:'That search took too long. Try again.' }
+        : { kind:'network', retry:true, msg:'Could not reach the travel agent. Check your connection and try again.' } };
+    }
+    if (timer) clearTimeout(timer);
+    S.ag.res[r.key] = out;
+    agRun.active--;
+    if (out.status === 'error' && out.err.fatal) {
+      // Same answer would come back for every queued search; skip them rather than spend or spam.
+      agRun.queue.splice(0).forEach(function(q){ S.ag.res[q.key] = { status:'error', err:out.err }; });
+    }
+    agPump(); renderAgent();
+  }
+
+  function agSecHead(r){
+    var span = r.ci && r.co ? Atlas.fmtRange(r.ci, r.co) : '';
+    if (r.kind === 'flights') return '<h4>Flights · ' + E(r.body.from) + ' to ' + E(r.city) + ' <small>' + E(span) + ' · ' + E(r.body.adults + r.body.kids) + ' travellers</small></h4>';
+    return '<h4>' + E(r.city) + ' <small>' + E(span) + ' · ' + plural(r.nights, 'night') + '</small></h4>';
+  }
+  function agFound(data){
+    var d = data && typeof data.researchedAt === 'string' ? new Date(data.researchedAt) : null;
+    var when = d && !isNaN(d) ? d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '';
+    return '<p class="ag-found">' + (when ? 'Prices found ' + E(when) + ', ' : '') + 'check before booking. Nothing is booked from here.</p>';
+  }
+  function agHotelCards(r, idx, data){
+    var opts = (data.options || []).slice(0, 5), cur = S.rates[r.city];
+    return '<ul class="ag-list">' + opts.map(function(o, k){
+      if (!o || typeof o !== 'object') return '';
+      var n = fnum(o.nightly), tot = fnum(o.total), href = safeHref(o.url), inUse = cur && n != null && cur.rate === n && cur.url === o.url;
+      return '<li class="ag-card"><div class="ag-top"><b class="ag-name">' + E(o.name) + '</b><span class="ag-price">' +
+          (n != null ? E(money(n)) + '<small>/night</small>' : '<small>rate not found</small>') + '</span></div>' +
+        '<p class="ag-meta">' + [o.area ? E(o.area) : '', tot != null ? 'stay ' + E(money(tot)) : '', o.source ? E(o.source) : ''].filter(Boolean).join(' · ') + '</p>' +
+        (o.why ? '<p class="ag-why">' + E(o.why) + '</p>' : '') +
+        '<div class="ag-btns">' + (href ? '<a class="qrbtn" href="' + href + '" target="_blank" rel="noopener">View hotel ↗</a>' : '') +
+        '<button type="button" class="qrbtn solid" data-act="ag-rate" data-i="' + idx + '" data-o="' + k + '"' + (n == null || inUse ? ' disabled' : '') + '>' + (inUse ? 'Using this rate' : 'Use this rate') + '</button></div></li>';
+    }).join('') + '</ul>';
+  }
+  function agFlightCards(r, idx, data){
+    var opts = (data.options || []).slice(0, 5);
+    return '<ul class="ag-list">' + opts.map(function(o, k){
+      if (!o || typeof o !== 'object') return '';
+      var tot = fnum(o.priceTotal), pp = fnum(o.pricePerPerson), href = safeHref(o.url);
+      var stopsTxt = fnum(o.stops) == null ? '' : o.stops === 0 ? 'nonstop' : plural(o.stops, 'stop');
+      var inUse = tot != null && Math.round(tot) === S.fare.airfare && S.draft.mode === 'fly';
+      return '<li class="ag-card"><div class="ag-top"><b class="ag-name">' + E(o.airline) + ' · ' + E(o.from) + ' → ' + E(o.to) + '</b><span class="ag-price">' +
+          (tot != null ? E(money(tot)) + '<small> total</small>' : '<small>price not found</small>') + '</span></div>' +
+        '<p class="ag-meta">' + [o.depart && o.return ? E(o.depart) + ' to ' + E(o.return) : '', stopsTxt, o.duration ? E(o.duration) : '', pp != null ? E(money(pp)) + ' each' : '', o.source ? E(o.source) : ''].filter(Boolean).join(' · ') + '</p>' +
+        (o.label ? '<p class="ag-why">' + E(o.label) + '</p>' : '') +
+        '<div class="ag-btns">' + (href ? '<a class="qrbtn" href="' + href + '" target="_blank" rel="noopener">View flight ↗</a>' : '') +
+        '<button type="button" class="qrbtn solid" data-act="ag-fare" data-i="' + idx + '" data-o="' + k + '"' + (tot == null || inUse ? ' disabled' : '') + '>' + (inUse ? 'Using this fare' : 'Use this fare') + '</button></div></li>';
+    }).join('') + '</ul>';
+  }
+  function agentInner(){
+    var reqs = agRequests(), busy = false, anyRes = false, prog = '', secs = '';
+    reqs.forEach(function(r, idx){
+      var st = agState(r), x = S.ag.res[r.key];
+      if (st === 'queued' || st === 'loading') {
+        busy = true;
+        prog += st === 'loading' ? '<li>Searching ' + E(agLabel(r)) + '…</li>' : '<li class="wait">Waiting to search ' + E(agLabel(r)) + '</li>';
+        return;
+      }
+      if (st === 'error') {
+        secs += agSecHead(r) + '<div role="alert" class="pl-err">' + E(x.err.msg) +
+          (x.err.retry ? '<br><button type="button" class="qrbtn pl-btn" data-act="ag-retry" data-i="' + idx + '">Try again</button>' : '') + '</div>';
+        return;
+      }
+      if (st === 'done') {
+        anyRes = true;
+        var data = agCache[r.key].data, n = Array.isArray(data.options) ? data.options.length : 0;
+        secs += agSecHead(r) + (n
+          ? (r.kind === 'flights' ? agFlightCards(r, idx, data) : agHotelCards(r, idx, data))
+          : '<p class="pl-empty">No ' + (r.kind === 'flights' ? 'flights' : 'hotels') + ' found for these dates.</p>') +
+          (data.notes ? '<p class="ag-notes">' + E(data.notes) + '</p>' : '') + agFound(data) +
+          (n ? '' : '<button type="button" class="qrbtn pl-btn" data-act="ag-retry" data-i="' + idx + '">Search again</button>');
+      }
+    });
+    var need = S.ag.needDate
+      ? '<p class="pl-err" role="alert">' + (S.ag.needDate === 'past' ? 'The trip start date has already passed, so there is nothing to search.' : 'Set a trip start date first, so the agent knows which dates to search.') +
+        '<br><button type="button" class="qrbtn pl-btn" data-act="ag-gowhen">Go to the When step</button></p>' : '';
+    return '<h3>Find hotels &amp; flights</h3>' +
+      '<p class="pl-note">Claude searches the live web for hotels at each stop and for flights. Each search can take up to a minute and uses the family API account. You can keep using the page while it works. Nothing is booked.</p>' +
+      '<div class="pl-actions"><button type="button" class="qrbtn solid pl-btn" data-act="agent"' + (busy ? ' disabled' : '') + '>' + (busy ? 'Searching…' : 'Find hotels &amp; flights') + '</button>' +
+      (anyRes && !busy ? '<button type="button" class="qrbtn pl-btn" data-act="agent-again">Search again</button>' : '') + '</div>' +
+      need + (prog ? '<ul class="ag-prog" role="status" aria-live="polite">' + prog + '</ul>' : '') + secs;
+  }
+  function agentHTML(){
+    return Atlas.auth.parent ? '<div class="ag" id="pl-agent">' + agentInner() + '</div>' : '';
+  }
+  function renderAgent(){
+    var el = document.getElementById('pl-agent'); if (!el) return;
+    var ae = document.activeElement, sel = null;
+    if (ae && ae.getAttribute && el.contains(ae)) {
+      var a = ae.getAttribute('data-act'), i = ae.getAttribute('data-i'), o = ae.getAttribute('data-o');
+      if (a) sel = '[data-act="' + a + '"]' + (i != null ? '[data-i="' + i + '"]' : '') + (o != null ? '[data-o="' + o + '"]' : '');
+    }
+    el.innerHTML = agentInner();
+    if (sel) { var n = el.querySelector(sel); if (n && !n.disabled) n.focus(); }
+  }
+  function useRate(i, k){
+    var r = agRequests()[i], c = r && agCache[r.key], o = c && c.data.options && c.data.options[k];
+    var n = o && fnum(o.nightly);
+    if (!r || r.kind !== 'hotels' || !n || n <= 0) return;
+    S.rates[r.city] = { rate:n, name:String(o.name || '').slice(0, 120), source:String(o.source || '').slice(0, 60), url:safeHref(o.url) ? o.url : '' };
+    setMsg('Using ' + money(n) + '/night for ' + r.city + '.');
+    S.focus = ['[data-act="ag-rate"][data-i="' + i + '"][data-o="' + k + '"]', '[data-act="agent"]']; changed();
+  }
+  function useFare(i, k){
+    var r = agRequests()[i], c = r && agCache[r.key], o = c && c.data.options && c.data.options[k];
+    var n = o && fnum(o.priceTotal);
+    if (!r || r.kind !== 'flights' || !n || n <= 0) return;
+    S.fare.airfare = Math.round(n);
+    if (typeof o.from === 'string' && Atlas.DEP_OPTS.some(function(d){ return d[0] === o.from; })) S.fare.dep = o.from;
+    S.draft.mode = 'fly';
+    S.fareNote = 'Using searched fare: ' + String(o.airline || '').slice(0, 60) + ' ' + String(o.from || '') + ' to ' + String(o.to || '') + ', ' + money(S.fare.airfare) + ' for the party.';
+    setMsg('Airfare set to ' + money(S.fare.airfare) + '. Comparison switched to flying.');
+    S.focus = ['[data-act="ag-fare"][data-i="' + i + '"][data-o="' + k + '"]', '[data-act="agent"]']; changed();
+  }
+  function clearRate(city){
+    if (city == null) S.rates = {}; else delete S.rates[city];
+    setMsg(city == null ? 'Searched hotel rates cleared.' : 'Searched rate for ' + city + ' cleared.');
+    S.focus = ['[data-act="ag-rate-clear"]', '[data-act="back"]']; changed();
+  }
+  function ratesHTML(){
+    var used = ratesInUse();
+    if (!used.length) return '';
+    return '<div class="pl-ovr"><b>Searched hotel rates are in this estimate</b><ul>' + used.map(function(x){
+      var r = x.r;
+      return '<li><span>' + E(x.city) + ': ' + E(money(r.rate)) + '/night' + (r.name ? ' · ' + E(r.name) : '') + (r.source ? ' (' + E(r.source) + ')' : '') + '</span>' +
+        '<button type="button" class="linkbtn" data-act="ag-rate-clear" data-city="' + E(x.city) + '" aria-label="Clear searched rate for ' + E(x.city) + '">Clear</button></li>';
+    }).join('') + '</ul>' + (used.length > 1 ? '<button type="button" class="linkbtn" data-act="ag-rate-clear" data-city="">Clear all</button>' : '') +
+      '<p class="pl-note" style="margin:4px 0 0">Other stops use the researched or default rate. Searched rates are point-in-time, so check before booking.</p></div>';
+  }
+
   /* ---------- save ---------- */
   function go(url){ window.location.assign(url); }
   async function save(){
@@ -469,6 +747,15 @@ Atlas.mountChrome('plan');
       case 'someday': S.draft.start_date = null; return changed();
       case 'mode': S.draft.mode = b.getAttribute('data-mode') === 'fly' ? 'fly' : 'drive'; persist(); S.focus = ['[data-act="mode"][data-mode="' + S.draft.mode + '"]']; return render();
       case 'fare': return fetchFare();
+      case 'agent': return agPress(false);
+      case 'agent-again': return agPress(true);
+      case 'ag-retry':
+        var rq = agRequests()[i]; if (!rq) return;
+        delete agCache[rq.key]; agSaveCache(); S.ag.res[rq.key] = { status:'queued' }; agRun.queue.push(rq); agPump(); return renderAgent();
+      case 'ag-gowhen': S.ag.needDate = ''; return goStep(1);
+      case 'ag-rate': return useRate(i, parseInt(b.getAttribute('data-o'), 10));
+      case 'ag-fare': return useFare(i, parseInt(b.getAttribute('data-o'), 10));
+      case 'ag-rate-clear': return clearRate(b.getAttribute('data-city') || null);
       case 'save': return save();
       case 'settings':
         var gear = document.querySelector('.ac-gear');
@@ -487,7 +774,7 @@ Atlas.mountChrome('plan');
     } else if (t.id === 'pl-start') {
       S.draft.start_date = isDate(t.value) ? t.value : null; changed();
     } else if (t.id === 'pl-dep') {
-      S.fare.dep = t.value; persist(); updateCompare();
+      S.fare.dep = t.value; S.ag.origin = null; persist(); updateCompare(); renderAgent();
     }
   });
   app.addEventListener('input', function(ev){
@@ -527,7 +814,8 @@ Atlas.mountChrome('plan');
 
   function clearDraftState(){
     S.draft = blank(); S.fare = { dep:'GSP', airfare:0 }; S.fareNote = ''; S.saveErr = ''; S.msg = ''; S.step = 0; S.tf.results = null;
-    lsDel(DRAFT_KEY); lsDel(FARE_KEY);
+    S.rates = {}; S.ag = { res:{}, needDate:'', origin:null };
+    lsDel(DRAFT_KEY); lsDel(FARE_KEY); lsDel(RATES_KEY);
   }
 
   /* ---------- URL parameters ---------- */
@@ -555,7 +843,7 @@ Atlas.mountChrome('plan');
           if (t) {
             S.draft = { id:t.id, name:t.name || '', start_date:isDate(t.start_date) ? t.start_date : null, stops:cleanStops(t.stops),
               mode:t.mode === 'fly' ? 'fly' : 'drive', notes:t.notes || '' };
-            S.fare = { dep:'GSP', airfare:0 }; S.fareNote = '';
+            S.fare = { dep:'GSP', airfare:0 }; S.fareNote = ''; S.rates = {}; S.ag = { res:{}, needDate:'', origin:null };
             persist(); setMsg('Editing “' + S.draft.name + '”. Save will update it.');
           } else setMsg('That trip was not found. Your current draft is unchanged.');
         } catch(e) { setMsg('Could not load that trip: ' + ((e && e.message) || 'unknown error')); }
@@ -577,6 +865,7 @@ Atlas.mountChrome('plan');
     render();
   }
 
+  agLoadCache();
   S.draft = loadDraft();
   Atlas.onData(render);
   Atlas.onSettings(render);

@@ -21,3 +21,50 @@ export async function requireLogin(req, res) {
   res.status(401).json({ error: "Login required" });
   return false;
 }
+
+// Parents only. Same session check as requireLogin, then the planner's
+// public.is_parent() RPC (the same call api/index.js makes as isParent()),
+// run as the caller so it answers for their own token.
+//   401 { error: "Login required" }         signed out / invalid session
+//   403 { error: "Parents only" }           signed in, but not a parent
+//   502 { error: "Could not verify ..." }   the planner's auth service is unreachable
+// Returns true only for a signed-in parent; otherwise it has already responded.
+export async function requireParent(req, res) {
+  const auth = req.headers.authorization || "";
+  if (!/^Bearer\s+\S+/.test(auth)) {
+    res.status(401).json({ error: "Login required" });
+    return false;
+  }
+  let userOk = false;
+  try {
+    const r = await fetch(`${PLANNER_SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: PLANNER_ANON_KEY, Authorization: auth },
+    });
+    userOk = r.ok;
+  } catch {
+    res.status(502).json({ error: "Could not verify your login right now" });
+    return false;
+  }
+  if (!userOk) {
+    res.status(401).json({ error: "Login required" });
+    return false;
+  }
+  let parent = false;
+  try {
+    const r = await fetch(`${PLANNER_SUPABASE_URL}/rest/v1/rpc/is_parent`, {
+      method: "POST",
+      headers: { apikey: PLANNER_ANON_KEY, Authorization: auth, "Content-Type": "application/json" },
+      body: "{}",
+    });
+    if (!r.ok) throw new Error("rpc " + r.status);
+    parent = (await r.json()) === true;
+  } catch {
+    res.status(502).json({ error: "Could not verify your login right now" });
+    return false;
+  }
+  if (!parent) {
+    res.status(403).json({ error: "Parents only" });
+    return false;
+  }
+  return true;
+}
