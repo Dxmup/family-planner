@@ -1110,6 +1110,69 @@ app.delete('/api/countdowns/:id', async (req, res) => {
 // Row-level security lets any family account read and only parents write, so
 // there are no permission checks here; sendErr turns an RLS refusal into 401.
 
+// Award-flight ("points") options a local research tool writes onto a trip (docs/atlas/points-options.md).
+// Returns { error } or { value } where value is null (clear) or the normalised object. Messy input is
+// repaired where that is safe (numeric strings, case, long text clipped); options without a program or a
+// positive whole-number miles total are dropped; at most 12 are kept.
+const POINTS_CABINS = { economy: 'economy', coach: 'economy', premium: 'premium', 'premium economy': 'premium', business: 'business', first: 'first' };
+function pointsStr(v, max) { return typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : ''; }
+function pointsNum(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v !== 'string') return null;
+  const t = v.replace(/[\s,$]/g, '');
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : null;
+}
+function pointsDate(v) {
+  if (typeof v !== 'string' || !DATE_RE.test(v)) return '';
+  const d = new Date(v + 'T00:00:00Z');
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v ? v : '';
+}
+function pointsUrl(v) {
+  if (typeof v !== 'string') return '';
+  const u = v.trim();
+  if (!/^https?:\/\//i.test(u) || u.length > 800) return '';
+  try { return /^https?:$/.test(new URL(u).protocol) ? u : ''; } catch (e) { return ''; }
+}
+function normalisePointsOptions(p) {
+  if (p === null) return { value: null };
+  if (typeof p !== 'object' || Array.isArray(p)) return { error: 'points_options must be an object or null' };
+  let researchedAt = new Date().toISOString().slice(0, 10);
+  if (p.researchedAt !== undefined && p.researchedAt !== null && p.researchedAt !== '') {
+    researchedAt = pointsDate(p.researchedAt);
+    if (!researchedAt) return { error: 'points_options.researchedAt must be a real date as YYYY-MM-DD' };
+  }
+  if (p.options !== undefined && !Array.isArray(p.options)) return { error: 'points_options.options must be an array' };
+  const options = [];
+  for (const o of p.options || []) {
+    if (options.length >= 12) break;
+    if (!o || typeof o !== 'object' || Array.isArray(o)) continue;
+    const program = pointsStr(o.program, 80);
+    const miles = pointsNum(o.miles);
+    if (!program || miles === null || miles <= 0 || miles > 10000000) continue;
+    const taxes = pointsNum(o.taxes);
+    const stops = pointsNum(o.stops);
+    const cabin = pointsStr(o.cabin, 20).toLowerCase();
+    const iata = (x) => (typeof x === 'string' && /^[A-Za-z]{3}$/.test(x.trim()) ? x.trim().toUpperCase() : '');
+    options.push({
+      program,
+      miles: Math.round(miles),
+      taxes: taxes !== null && taxes < 1e7 ? Math.round(taxes * 100) / 100 : null,
+      cabin: POINTS_CABINS[cabin] || '',
+      airline: pointsStr(o.airline, 60),
+      from: iata(o.from),
+      to: iata(o.to),
+      depart: pointsDate(o.depart),
+      return: pointsDate(o.return),
+      stops: stops !== null && Number.isInteger(stops) && stops >= 0 && stops <= 4 ? stops : null,
+      transferFrom: pointsStr(o.transferFrom, 120),
+      source: pointsStr(o.source, 40),
+      url: pointsUrl(o.url),
+      note: pointsStr(o.note, 300)
+    });
+  }
+  return { value: { researchedAt, options, notes: pointsStr(p.notes, 600) } };
+}
+
 // Validates the fields present in `b`. With `full` true, name is required and
 // absent fields get their defaults. Returns { error } or { row }.
 function atlasTripFields(b, full) {
@@ -1132,7 +1195,22 @@ function atlasTripFields(b, full) {
     for (const s of stops) {
       if (!s || typeof s.city !== 'string' || !s.city.trim()) return { error: 'each stop needs a city' };
       if (!Number.isInteger(s.nights) || s.nights < 0 || s.nights > 30) return { error: 'each stop needs nights (integer 0-30)' };
-      clean.push({ city: s.city.trim(), nights: s.nights });
+      const city = s.city.trim();
+      if (city.length > 80) return { error: 'a stop city can be at most 80 characters' };
+      const stop = { city, nights: s.nights };
+      // Optional, for places that are not in the Atlas: coordinates and a custom flag. Unknown fields are dropped.
+      const hasLat = s.lat !== undefined && s.lat !== null, hasLon = s.lon !== undefined && s.lon !== null;
+      if (hasLat || hasLon) {
+        if (!hasLat || !hasLon) return { error: 'a stop needs both lat and lon, or neither' };
+        if (typeof s.lat !== 'number' || !Number.isFinite(s.lat) || s.lat < -90 || s.lat > 90) return { error: 'stop lat must be a number from -90 to 90' };
+        if (typeof s.lon !== 'number' || !Number.isFinite(s.lon) || s.lon < -180 || s.lon > 180) return { error: 'stop lon must be a number from -180 to 180' };
+        stop.lat = s.lat; stop.lon = s.lon;
+      }
+      if (s.custom !== undefined && s.custom !== null) {
+        if (typeof s.custom !== 'boolean') return { error: 'stop custom must be true or false' };
+        if (s.custom) stop.custom = true;
+      }
+      clean.push(stop);
     }
     row.stops = clean;
   }
@@ -1151,7 +1229,19 @@ function atlasTripFields(b, full) {
     if (typeof n !== 'string' || n.length > 2000) return { error: 'notes must be a string of at most 2000 characters' };
     row.notes = n;
   }
+  // Only when sent, even on create, so every other trip write works before the migration is applied.
+  if (b.points_options !== undefined) {
+    const { error: pe, value } = normalisePointsOptions(b.points_options);
+    if (pe) return { error: pe };
+    row.points_options = value;
+  }
   return { row };
+}
+
+// A write that carries points_options fails with a schema-cache error until the migration is applied.
+const POINTS_NOT_READY = 'Points options are not set up yet: the database migration 20261127000000_trip_points_options.sql has not been applied.';
+function pointsColumnMissing(row, error) {
+  return !!error && 'points_options' in row && (error.code === 'PGRST204' || error.code === '42703' || /points_options/i.test(error.message || ''));
 }
 
 app.get('/api/trips', async (req, res) => {
@@ -1165,6 +1255,7 @@ app.post('/api/trips', async (req, res) => {
   const { row, error: msg } = atlasTripFields(req.body, true);
   if (msg) return bad(res, msg);
   const { data, error } = await req.sb.from('atlas_trips').insert(row).select().single();
+  if (pointsColumnMissing(row, error)) return bad(res, POINTS_NOT_READY);
   if (sendErr(res, error)) return;
   ok(res, data);
 });
@@ -1177,6 +1268,7 @@ app.put('/api/trips/:id', async (req, res) => {
   if (msg) return bad(res, msg);
   if (!Object.keys(row).length) return bad(res, 'nothing to update');
   const { data, error } = await req.sb.from('atlas_trips').update(row).eq('id', t.id).select().single();
+  if (pointsColumnMissing(row, error)) return bad(res, POINTS_NOT_READY);
   if (sendErr(res, error)) return;
   ok(res, data);
 });

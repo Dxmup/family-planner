@@ -11,6 +11,12 @@ A parent-only button on the Plan page (How step). One press makes Claude search 
 - Results are kept in memory and in `sessionStorage` (`atlas_agent_cache`, keyed by the exact request), so stepping around, pressing the button again or reloading the tab does not spend again. **Search again** re-runs everything on purpose; **Try again** re-runs one failed request.
 - Failure states (plain wording, retry offered where it can help): not set up yet (503), parents only (403), signed out (401), timed out / busy / upstream error (retry), no results (notes plus a search-again button).
 
+## Stops that are not in the Atlas
+
+A trip can include any city (typed into "Add any city" on the Plan page). The agent treats those like any other stop: `city` is the display name, such as `"Montreal, Quebec"` or `"Paris, France"`, and the server's plain-name check (letters including accents, spaces, `.`, `'`, `,`, `-`, at most 60 characters, no markup, digits or newlines) accepts them. The flights request goes to the farthest stop that has coordinates (any stop if none do). A custom stop has no airport code in the Atlas, so "Look up fares" asks for the airfare by hand, but the agent's flight search works out the airports itself.
+
+Award-flight (points) options are a separate feature: see `docs/atlas/points-options.md`.
+
 ## Endpoint
 
 `POST /api/atlas/agent` (`api/atlas/agent.mjs`, a Vercel function, `maxDuration: 60`). It does not run under the local `node server.js`.

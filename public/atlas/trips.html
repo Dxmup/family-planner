@@ -85,6 +85,25 @@
   .te-stop{margin-bottom:10px}
   .te-top .te-copy{margin-left:0}
   .te-top .te-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .cst{display:inline-flex;flex-direction:column;justify-content:center;min-height:40px;padding:4px 12px;border-radius:100px;
+    border:1px dashed var(--border);background:#fff;color:var(--pine);font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+  .cst em,.tag-new{font-family:var(--mono);font-style:normal;font-weight:400;font-size:11px;color:var(--muted)}
+  .hero .chain .cst{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.35);color:#fff}
+  .hero .chain .cst em{color:#C7D1C6}
+  .pts{margin-top:16px;padding-top:14px;border-top:1px dashed var(--border)}
+  .pts h3{font-family:var(--serif);font-weight:600;font-size:19px;margin:0 0 8px}
+  .pts-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .pts-card{border:1px solid var(--border);border-radius:12px;background:var(--paper);padding:10px 12px;min-width:0;overflow-wrap:anywhere}
+  .pts-top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:2px 10px}
+  .pts-prog{font-weight:700;color:var(--pine)}
+  .pts-miles{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--amber-deep)}
+  .pts-miles small{font-size:11px;font-weight:400;color:var(--muted)}
+  .pts-meta{font-size:13px;color:var(--muted);margin:3px 0 0}
+  .pts-note{font-size:13px;margin:6px 0 0}
+  .pts-card .tp-btn{min-height:40px;padding:6px 14px;font-size:13px;margin-top:8px}
+  .pts-notes{font-size:13px;margin:10px 0 0;padding:8px 10px;border-radius:8px;background:#FBF3E2;border:1px solid var(--amber);overflow-wrap:anywhere;white-space:pre-wrap}
+  .pts-found,.pts-none{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+  .pts-ctl{margin-top:10px}
   .tp-undated{font-size:14px;color:var(--muted);margin:6px 0 0}
   .tp-loading{color:var(--muted);padding:40px 0;text-align:center;font-size:17px}
   .tp-past .tc{opacity:.92}
@@ -121,8 +140,15 @@ function totalNights(trip) {
 }
 function stopsOf(trip) {
   return (Array.isArray(trip && trip.stops) ? trip.stops : []).filter(function (s) { return s && s.city; })
-    .map(function (s) { return { city: String(s.city), nights: Math.max(0, parseInt(s.nights, 10) || 0) }; });
+    .map(function (s) {
+      var o = { city: String(s.city), nights: Math.max(0, parseInt(s.nights, 10) || 0) };
+      if (s.custom === true) { o.custom = true; if (typeof s.lat === 'number' && typeof s.lon === 'number') { o.lat = s.lat; o.lon = s.lon; } }
+      return o;
+    });
 }
+// A stop the Atlas does not know (flagged custom and not an Atlas city): tagged, never linked to city.html.
+function isCustom(s) { return Atlas.isCustomStop(s); }
+var NEW_TAG = 'not in the Atlas yet';
 function tripStart(trip) { return parseYMD(trip.start_date); }
 function tripEnd(trip) { var s = tripStart(trip); return s ? addDays(s, totalNights(trip)) : null; }
 function rangeText(a, b) {
@@ -136,7 +162,9 @@ function stopRanges(trip) {
   return stopsOf(trip).map(function (st) {
     var arr = addDays(s, cum), dep = addDays(arr, st.nights);
     cum += st.nights;
-    return { city: st.city, nights: st.nights, arr: arr, dep: dep, text: rangeText(arr, dep) };
+    var row = { city: st.city, nights: st.nights, arr: arr, dep: dep, text: rangeText(arr, dep) };
+    if (st.custom) row.custom = true;
+    return row;
   });
 }
 
@@ -163,7 +191,7 @@ function countdown(trip, today) {
 }
 
 /* ---------- state ---------- */
-var state = { status: 'loading', trips: [], err: '', open: {}, confirmDel: '', busy: {}, focusId: '', targetId: '' };
+var state = { status: 'loading', trips: [], err: '', open: {}, confirmDel: '', confirmPts: '', busy: {}, focusId: '', targetId: '' };
 var liveCache = {};   // "tripId|city|start" -> html of the loaded live events
 var dayKey = '';
 (function () {
@@ -180,7 +208,9 @@ function chainHtml(trip) {
   if (!st.length) return '';
   return '<div class="chain" aria-label="Route">' + st.map(function (s, i) {
     return (i ? '<span class="arr" aria-hidden="true">→</span>' : '')
-      + '<a href="' + Atlas.esc(Atlas.cityUrl(s.city)) + '">' + Atlas.esc(s.city) + '</a>'
+      + (isCustom(s)
+        ? '<span class="cst">' + Atlas.esc(s.city) + '<em>' + NEW_TAG + '</em></span>'
+        : '<a href="' + Atlas.esc(Atlas.cityUrl(s.city)) + '">' + Atlas.esc(s.city) + '</a>')
       + '<span class="n">' + s.nights + (s.nights === 1 ? ' night' : ' nights') + '</span>';
   }).join('') + '</div>';
 }
@@ -210,15 +240,15 @@ function heroHtml(trip, today) {
 }
 
 function eventsHtml(trip, r, today, idx) {
-  var city = r.city, arrISO = Atlas.isoDate(r.arr), depISO = Atlas.isoDate(r.dep);
-  var evs = (Atlas.data.EVENTS || {})[city] || [];
-  var links = evs.length
+  var city = r.city, arrISO = Atlas.isoDate(r.arr), depISO = Atlas.isoDate(r.dep), custom = isCustom(r);
+  var evs = custom ? [] : (Atlas.data.EVENTS || {})[city] || [];
+  var links = custom ? '' : evs.length
     ? '<div class="events te-links">' + evs.map(function (e) {
         return '<a class="ev" href="' + Atlas.esc(safeUrl(e.u)) + '" target="_blank" rel="noopener" title="' + Atlas.esc(e.d) + '">' + Atlas.esc(e.n) + '</a>';
       }).join('') + '</div>'
     : '<p class="te-note">No saved calendar links for this city.</p>';
   // baked research: only items dated inside this stop's window and not yet past
-  var fe = (Atlas.data.TRIP_EVENTS || {})[city], found = '';
+  var fe = custom ? null : (Atlas.data.TRIP_EVENTS || {})[city], found = '';
   if (fe && Array.isArray(fe.items)) {
     var todayISO = Atlas.isoDate(today);
     var items = fe.items.filter(function (it) { return it.d && it.d >= todayISO && it.d >= arrISO && it.d <= depISO; });
@@ -231,7 +261,7 @@ function eventsHtml(trip, r, today, idx) {
   }
   var key = trip.id + '|' + city + '|' + arrISO;
   var cached = liveCache[key];
-  return '<div class="te-stop"><div class="te-top"><span class="te-city">' + Atlas.esc(city) + '</span>'
+  return '<div class="te-stop"><div class="te-top"><span class="te-city">' + Atlas.esc(city) + '</span>' + (custom ? ' <span class="tag-new">' + NEW_TAG + '</span>' : '')
     + '<span class="te-dates">' + Atlas.esc(r.text) + '</span>'
     + '<span class="te-actions">'
     + '<button type="button" class="te-copy te-live-btn" data-action="live" data-key="' + Atlas.esc(key) + '" data-city="' + Atlas.esc(city) + '" data-start="' + arrISO + '" data-end="' + depISO + '">'
@@ -246,7 +276,7 @@ function detailHtml(trip, today) {
   var rs = stopRanges(trip), h = '';
   if (rs.length) {
     h += '<ul class="stoplist">' + rs.map(function (r) {
-      return '<li><span class="c">' + Atlas.esc(r.city) + '</span><span class="te-dates">' + Atlas.esc(r.text) + '</span></li>';
+      return '<li><span class="c">' + Atlas.esc(r.city) + '</span>' + (isCustom(r) ? '<span class="tag-new">' + NEW_TAG + '</span>' : '') + '<span class="te-dates">' + Atlas.esc(r.text) + '</span></li>';
     }).join('') + '</ul>';
   }
   var ended = s && dayDiff(today, e) < 0;
@@ -256,8 +286,56 @@ function detailHtml(trip, today) {
     h += '<div class="te-head" style="margin-top:14px">Events along the way</div>'
       + rs.map(function (r, i) { return eventsHtml(trip, r, today, i); }).join('');
   }
+  h += pointsHtml(trip);
   h += actionsHtml(trip, today, s, ended);
   return h;
+}
+
+/* ---------- points options (written by the points check; see docs/atlas/points-options.md) ---------- */
+var CABINS = { economy: 'Economy', premium: 'Premium economy', business: 'Business', first: 'First' };
+function pointsOf(trip) {
+  var p = trip && trip.points_options;
+  if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
+  var opts = (Array.isArray(p.options) ? p.options : []).filter(function (o) { return o && typeof o === 'object' && Number(o.miles) > 0; });
+  var notes = typeof p.notes === 'string' ? p.notes : '';
+  if (!opts.length && !notes) return null;
+  opts = opts.slice().sort(function (a, b) { return Number(a.miles) - Number(b.miles); });
+  return { options: opts, notes: notes, researchedAt: typeof p.researchedAt === 'string' ? p.researchedAt : '' };
+}
+function pointsCard(o) {
+  var E = Atlas.esc;
+  var taxes = o.taxes != null && o.taxes !== '' && isFinite(+o.taxes) ? '+ $' + (+o.taxes).toFixed(2) + ' taxes & fees' : 'taxes not listed';
+  var route = [o.airline ? E(o.airline) : '', o.from && o.to ? E(o.from) + ' → ' + E(o.to) : ''].filter(Boolean).join(' · ');
+  var when = o.depart ? E(o.depart) + (o['return'] ? ' to ' + E(o['return']) : '') : '';
+  var stops = o.stops == null || o.stops === '' || !isFinite(+o.stops) ? '' : (+o.stops === 0 ? 'nonstop' : +o.stops + (+o.stops === 1 ? ' stop' : ' stops'));
+  var u = safeUrl(o.url);
+  return '<li class="pts-card"><div class="pts-top"><span class="pts-prog">' + E(o.program) + '</span>'
+    + '<span class="pts-miles">' + E(Math.round(+o.miles).toLocaleString()) + ' miles <small>for the whole party</small></span></div>'
+    + '<p class="pts-meta">' + [E(taxes), o.cabin ? E(CABINS[o.cabin] || o.cabin) : '', route, when, E(stops)].filter(Boolean).join(' · ') + '</p>'
+    + (o.transferFrom ? '<p class="pts-meta">Transfer from: ' + E(o.transferFrom) + '</p>' : '')
+    + (o.source ? '<p class="pts-meta">Source: ' + E(o.source) + '</p>' : '')
+    + (o.note ? '<p class="pts-note">' + E(o.note) + '</p>' : '')
+    + (u ? '<a class="tp-btn" href="' + E(u) + '" target="_blank" rel="noopener">View award ↗</a>' : '') + '</li>';
+}
+function pointsHtml(trip) {
+  var p = pointsOf(trip), parent = Atlas.auth.parent;
+  if (!p) {
+    return parent ? '<div class="pts"><p class="pts-none">Points options appear here after running the points check from Claude Code on the home PC.</p></div>' : '';
+  }
+  var d = parseYMD(p.researchedAt), id = Atlas.esc(trip.id);
+  var found = d ? 'Found ' + Atlas.esc(rangeText(d, d)) + ' on point.me / PointsYeah, check before booking.' : 'Found on point.me / PointsYeah (date unknown), check before booking.';
+  var ctl = '';
+  if (parent) {
+    ctl = state.confirmPts === trip.id
+      ? '<div class="tc-confirm pts-ctl" role="alertdialog" aria-label="Confirm clear points options"><span>Clear the points options?</span>'
+        + '<button type="button" class="tp-btn danger" data-action="pts-clear-yes" data-id="' + id + '"' + (state.busy[trip.id] ? ' disabled' : '') + '>Yes, clear</button>'
+        + '<button type="button" class="tp-btn" data-action="pts-clear-no" data-id="' + id + '">Keep them</button></div>'
+      : '<div class="pts-ctl"><button type="button" class="tp-btn" data-action="pts-clear" data-id="' + id + '">Clear points options</button></div>';
+  }
+  return '<div class="pts"><h3>Points options</h3>'
+    + (p.options.length ? '<ul class="pts-list">' + p.options.map(pointsCard).join('') + '</ul>' : '')
+    + (p.notes ? '<p class="pts-notes">' + Atlas.esc(p.notes) + '</p>' : '')
+    + '<p class="pts-found">' + found + '</p>' + ctl + '</div>';
 }
 
 function actionsHtml(trip, today, s, ended) {
@@ -353,6 +431,7 @@ async function load() {
   try {
     var list = await Atlas.trips.list();
     state.trips = Array.isArray(list) ? list : [];
+    state.trips.forEach(function (t) { Atlas.registerStops(t && t.stops); });   // custom stops, before anything is computed
     state.status = 'ok';
     if (state.targetId) state.scrollId = state.targetId;
     render();
@@ -450,7 +529,7 @@ async function addCountdown(trip) {
 
 async function stampCities(trip) {
   var visitedOn = Atlas.isoDate(tripEnd(trip));
-  var seen = {}, cities = stopsOf(trip).map(function (s) { return s.city; }).filter(function (c) { return seen[c] ? false : (seen[c] = true); });
+  var seen = {}, cities = stopsOf(trip).filter(function (s) { return !isCustom(s); }).map(function (s) { return s.city; }).filter(function (c) { return seen[c] ? false : (seen[c] = true); });
   state.busy[trip.id] = true; render();
   var done = 0, failed = [];
   for (var i = 0; i < cities.length; i++) {
@@ -462,6 +541,20 @@ async function stampCities(trip) {
     ? 'Stamped ' + done + ', failed: ' + failed.join('; ')
     : 'Stamped ' + done + (done === 1 ? ' city' : ' cities') + ' as visited.';
   say(msg); Atlas.toast(Atlas.esc(msg));
+}
+
+async function clearPoints(trip) {
+  state.busy[trip.id] = true; render();
+  try {
+    var t = await Atlas.trips.update(trip.id, { points_options: null });
+    trip.points_options = t && typeof t === 'object' && 'points_options' in t ? t.points_options : null;
+    state.confirmPts = '';
+    say('Points options cleared.'); Atlas.toast('Points options cleared.');
+  } catch (e) {
+    say('Could not clear the points options.'); Atlas.toast('Couldn’t clear: ' + Atlas.esc(e.message));
+  } finally {
+    delete state.busy[trip.id]; render();
+  }
 }
 
 async function deleteTrip(trip) {
@@ -492,6 +585,9 @@ function onClick(ev) {
   else if (a === 'delete') { state.confirmDel = id; render(); }
   else if (a === 'delete-no') { state.confirmDel = ''; render(); }
   else if (a === 'delete-yes') deleteTrip(trip);
+  else if (a === 'pts-clear') { state.confirmPts = id; render(); }
+  else if (a === 'pts-clear-no') { state.confirmPts = ''; render(); }
+  else if (a === 'pts-clear-yes') clearPoints(trip);
   else if (a === 'countdown') addCountdown(trip);
   else if (a === 'stamp') stampCities(trip);
 }
