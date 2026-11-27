@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tools · Hensel Family Adventure Atlas</title>
+<link rel="stylesheet" href="/atlas/atlas.css">
+<style>
+  .tl-panel{background:var(--card);border:1px solid var(--border);border-radius:14px;margin:0 0 14px;box-shadow:var(--shadow)}
+  .tl-panel>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 16px;
+    font-family:var(--serif);font-weight:600;font-size:20px}
+  .tl-panel>summary::-webkit-details-marker{display:none}
+  .tl-panel>summary::before{content:"▸";color:var(--amber-deep);font-size:15px;transition:transform .12s}
+  .tl-panel[open]>summary::before{transform:rotate(90deg)}
+  .tl-panel>summary small{font-family:var(--sans);font-weight:400;font-size:13px;color:var(--muted);margin-left:auto}
+  .tl-body{padding:0 16px 16px}
+  .tl-help{color:var(--muted);font-size:14px;margin:0 0 14px;max-width:60ch}
+  .tl-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px 16px;margin-bottom:12px}
+  .tl-fields .ip{width:100%}
+  .tl-fields .ip input{width:100%;min-width:0;min-height:30px}
+  .tl-unit{font-size:12px;color:var(--muted)}
+  .tl-btn{min-height:40px;padding:6px 14px;font-size:14px}
+  .tl-tablewrap{overflow-x:auto}
+  .tl-table{width:100%;border-collapse:collapse;font-size:14px}
+  .tl-table th{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:left;
+    padding:6px 8px;border-bottom:2px solid var(--pine)}
+  .tl-table td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle}
+  .tl-table td.num,.tl-table th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .tl-table a{display:inline-block;min-height:24px;font-weight:600}
+  .tl-stale{color:var(--t-hi);font-weight:700}
+  .tl-note{margin:0;padding:16px;background:var(--card);border:1px solid var(--border);border-radius:12px}
+  .tl-strategy .sec-desc{margin-bottom:18px}
+  .tl-h{font-family:var(--serif);font-weight:600;font-size:24px;margin:0 0 6px;letter-spacing:-.01em}
+</style>
+</head>
+<body>
+<div id="atlas-chrome"></div>
+<main id="app" class="wrap ac-main"></main>
+<script src="/atlas/atlas-core.js"></script>
+<script>
+Atlas.mountChrome('tools');
+(function(){
+  var E = Atlas.esc, app = document.getElementById('app');
+  var STRATEGY = `
+    <p class="sec-desc">The scour didn't just fill gaps — it changed the ranking. Here's where I'd revise the portfolio, and the calendar traps to plan around.</p>
+    <div class="split">
+      <div class="panel">
+        <h3>Re-tier recommendations</h3>
+        <p class="lead">Fresh-eyes moves based on what the research surfaced.</p>
+        <div class="rec"><span class="move add">Add</span><p><b>Atlanta</b> — glaringly absent, yet ~2h away with a top-5 world aquarium, Zoo Atlanta, Fernbank &amp; Stone Mountain. Make it a formal <b>hub</b> and Tier-1 mini-destination; it doubles as your Florida-route launch point.</p></div>
+        <div class="rec"><span class="move add">Add</span><p><b>Charleston</b> — hits walkability, food, beaches, history &amp; a sea-turtle-hospital aquarium better than several Tier-2 picks. Belongs in Tier 1–2.</p></div>
+        <div class="rec"><span class="move add">Add</span><p><b>Knoxville</b> — your gateway to the entire KY/OH corridor, and a real destination itself (Zoo Knoxville, Ijams, the Smokies 45 min on). Promote to a hub.</p></div>
+        <div class="rec"><span class="move up">Elevate</span><p><b>Huntsville</b> (from Tier 3) — Space &amp; Rocket Center + Cook Museum is the best science-and-engineering day in range, tailor-made for your 4th grader.</p></div>
+        <div class="rec"><span class="move up">Elevate</span><p><b>Columbus</b> (from Tier 3) — COSI + Jack Hanna's zoo + The Wilds safari out-punch Indianapolis for your themes.</p></div>
+        <div class="rec"><span class="move watch">Reconsider</span><p><b>Philadelphia</b> — at 9.5h it competes with closer, richer DC. Treat it as a <b>fly, not drive</b> trip, or pair it onto a DC itinerary rather than its own quarterly.</p></div>
+        <div class="rec"><span class="move watch">Note</span><p><b>St. Louis</b> earns its spot (City Museum + free world-class zoo), but its 9.5h drive <b>only works via the Chattanooga→Nashville chain</b> — name that dependency in its playbook.</p></div>
+      </div>
+      <div class="panel">
+        <h3>Verify before you book</h3>
+        <p class="lead">Timing flags the agents surfaced — check official sites near your dates.</p>
+        <div class="flag"><span class="cal">Nov 15–Mar 31</span><p><b>Crystal River manatee swims</b> only run in season. Off-season, Homosassa Springs' underwater "Fish Bowl" has manatees year-round.</p></div>
+        <div class="flag"><span class="cal">Oct 26 '26–<br>Mar 24 '27</span><p><b>Universal's Volcano Bay closed</b> for refurb — pivot to Aquatica if you're in Orlando that window.</p></div>
+        <div class="flag"><span class="cal">Thru mid-Jul '26</span><p><b>Nashville's Parthenon</b> closed for HVAC work — verify reopening; the free park around it stays open.</p></div>
+        <div class="flag"><span class="cal">2026 season</span><p><b>Savannah Bananas</b> use a ticket lottery and travel much of the year — confirm home dates and enter early.</p></div>
+        <div class="flag"><span class="cal">From Apr 29 '26</span><p><b>Rainbow Springs</b> headspring now requires reservations to enter.</p></div>
+        <div class="flag"><span class="cal">Location</span><p><b>Mote SEA</b> is the new Sarasota/UTC aquarium — the old City Island Mote is closed. Go to UTC.</p></div>
+        <div class="flag"><span class="cal">Age minimums</span><p><b>Discovery Cove dolphin swim</b> &amp; <b>Devil's Den snorkel</b> are 6+, sidelining your 5-year-old from that one activity (easy on-site alternatives exist).</p></div>
+        <div class="flag"><span class="cal">Seasonal</span><p>Most outdoor <b>water parks &amp; spring tubing</b> run ~late-May–early-Aug only. Confirm 2026 dates.</p></div>
+      </div>
+    </div>
+`;
+  var MON = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  function parsePriced(s){
+    var m = /^\s*([A-Za-z]{3})[a-z]*\.?\s+(\d{4})\s*$/.exec(s || '');
+    if (!m || MON[m[1].toLowerCase()] == null) return null;
+    return new Date(+m[2], MON[m[1].toLowerCase()], 1);
+  }
+  function monthsAgo(d){
+    var n = new Date();
+    return Math.max(0, (n.getFullYear() - d.getFullYear()) * 12 + n.getMonth() - d.getMonth());
+  }
+  function freshnessRows(){
+    var D = Atlas.data, rows = Object.keys(D.CITIES || {}).map(function(c){
+      var raw = (D.PRICE_DATES || {})[c], d = parsePriced(raw);
+      return { city:c, raw:raw || '', d:d, rate:(D.HOTELS || {})[c] };
+    });
+    rows.sort(function(a, b){
+      var ta = a.d ? a.d.getTime() : -Infinity, tb = b.d ? b.d.getTime() : -Infinity;
+      return ta - tb || (a.city < b.city ? -1 : 1);
+    });
+    return rows;
+  }
+  function freshnessTable(){
+    var rows = freshnessRows();
+    return '<div class="tl-tablewrap"><table class="tl-table"><thead><tr><th scope="col">City</th><th scope="col" class="num">Hotel / night</th>' +
+      '<th scope="col">Priced</th><th scope="col" class="num">Age</th></tr></thead><tbody>' +
+      rows.map(function(r){
+        var age = r.d ? monthsAgo(r.d) : null;
+        return '<tr><td><a href="' + E(Atlas.cityUrl(r.city)) + '">' + E(r.city) + '</a></td>' +
+          '<td class="num">' + (r.rate != null ? E(Atlas.money(r.rate)) : '<span class="tl-unit">default</span>') + '</td>' +
+          '<td>' + (r.raw ? E(r.raw) : '<span class="tl-stale">never</span>') + '</td>' +
+          '<td class="num">' + (age == null ? '—' : (age >= 6 ? '<span class="tl-stale">' + age + ' mo</span>' : age + ' mo')) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+  function fieldsHTML(){
+    return Atlas.settings.fields.map(function(f){
+      return '<div class="assume"><label for="tl-' + f[0] + '">' + E(f[1]) + '</label><div class="ip">' +
+        (f[2] ? '<span>' + E(f[2]) + '</span>' : '') +
+        '<input id="tl-' + f[0] + '" data-key="' + E(f[0]) + '" type="number" inputmode="decimal" step="' + E(f[3]) + '" min="' + E(f[4]) + '"></div></div>';
+    }).join('');
+  }
+  function syncFields(){
+    var s = Atlas.settings.get();
+    app.querySelectorAll('.tl-fields input').forEach(function(inp){
+      if (inp !== document.activeElement) inp.value = s[inp.dataset.key];
+    });
+  }
+  var built = false;
+  function build(){
+    app.innerHTML =
+      '<h1 class="page-title">Tools</h1><p class="page-sub">Parent settings and reference notes.</p>' +
+      '<details class="tl-panel" open><summary>Travel assumptions</summary><div class="tl-body">' +
+        '<p class="tl-help">Every price and trip estimate uses these. Saved on this device. A city’s researched hotel rate overrides the hotel default.</p>' +
+        '<div class="tl-fields">' + fieldsHTML() + '</div>' +
+        '<button type="button" class="qrbtn tl-btn" id="tl-reset">Reset to defaults</button></div></details>' +
+      '<details class="tl-panel"><summary>Price freshness<small>oldest first</small></summary><div class="tl-body" id="tl-fresh"></div></details>' +
+      '<details class="tl-panel tl-strategy"><summary>Strategy notes</summary><div class="tl-body"><h2 class="tl-h">Challenging the Tier List</h2>' + STRATEGY + '</div></details>';
+    app.querySelectorAll('.tl-fields input').forEach(function(inp){
+      inp.addEventListener('input', function(){ var p = {}; p[inp.dataset.key] = inp.value; Atlas.settings.set(p); });
+      inp.addEventListener('blur', syncFields);
+    });
+    document.getElementById('tl-reset').addEventListener('click', function(){ Atlas.settings.reset(); syncFields(); });
+    Atlas.onSettings(syncFields);
+    syncFields();
+    built = true;
+  }
+  function render(){
+    if (!Atlas.auth.parent) {
+      app.innerHTML = '<h1 class="page-title">Tools</h1><p class="tl-note">Tools are for parents only. <a href="/atlas/">Back to Explore</a></p>';
+      return;
+    }
+    if (!built) build();
+    document.getElementById('tl-fresh').innerHTML = freshnessTable();
+  }
+  Atlas.onData(render);
+})();
+</script>
+</body>
+</html>

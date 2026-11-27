@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trips · Hensel Family Adventure Atlas</title>
+<link rel="stylesheet" href="/atlas/atlas.css">
+<style>
+  .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  .tp-wrap{padding-bottom:48px}
+  .tp-note{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px;
+    box-shadow:var(--shadow);max-width:60ch}
+  .tp-note h2{font-family:var(--serif);font-size:22px;margin:0 0 6px}
+  .tp-note p{margin:0 0 14px;color:var(--muted)}
+  .tp-note .err{font-family:var(--mono);font-size:12.5px;color:var(--amber-deep);word-break:break-word}
+  .tp-actions{display:flex;flex-wrap:wrap;gap:10px}
+  .tp-btn{font-family:var(--sans);font-size:14px;font-weight:600;cursor:pointer;min-height:42px;
+    padding:8px 18px;border-radius:100px;border:1.5px solid var(--pine2);background:var(--card);
+    color:var(--pine);text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+  .tp-btn:hover{background:var(--pine);color:#fff}
+  .tp-btn.solid{background:var(--pine);color:#fff}
+  .tp-btn.solid:hover{background:var(--pine2)}
+  .tp-btn.danger{border-color:#A6492E;color:#A6492E}
+  .tp-btn.danger:hover{background:#A6492E;color:#fff}
+  .tp-btn:disabled{opacity:.6;cursor:default}
+  .tp-btn:focus-visible,.tc-toggle:focus-visible,.te-copy:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+
+  /* hero */
+  .hero{background:radial-gradient(120% 140% at 90% -20%,rgba(210,148,42,.22),transparent 60%),
+      linear-gradient(180deg,#204137,#1A322B);color:#EDEFE7;border-radius:20px;border-bottom:4px solid var(--amber);
+    padding:26px 22px 24px;margin:6px 0 28px;box-shadow:var(--shadow)}
+  .hero .eyebrow{margin:0 0 6px}
+  .hero-big{font-family:var(--serif);font-weight:700;color:#fff;line-height:1.02;letter-spacing:-.01em;
+    font-size:clamp(40px,9vw,84px);margin:0;text-wrap:balance}
+  .hero-big .num{color:var(--amber)}
+  .hero-big .ico{display:inline-block;margin-right:10px}
+  .hero-name{font-family:var(--serif);font-size:clamp(22px,4vw,34px);margin:8px 0 2px;color:#EDEFE7}
+  .hero-dates{font-family:var(--mono);font-size:15px;color:#C7D1C6;margin:0 0 16px}
+  .hero .chain a{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25);color:#fff}
+  .hero .chain .n,.hero .chain .arr{color:#C7D1C6}
+  .hero .chain{font-size:clamp(17px,3vw,22px)}
+  .hero .tp-btn{background:var(--amber);border-color:var(--amber);color:#1A2A24;margin-top:16px}
+  .hero .tp-btn:hover{background:#fff;border-color:#fff}
+  @media(prefers-reduced-motion:no-preference){.hero-big .ico{animation:tpbob 2.4s ease-in-out infinite}}
+  @keyframes tpbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+  /* groups and cards */
+  .tp-group{margin:0 0 30px}
+  .tp-group h2{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--amber-deep);margin:0 0 12px;font-weight:600}
+  .tp-cards{display:flex;flex-direction:column;gap:12px}
+  .tc{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);
+    padding:14px 16px;scroll-margin-top:80px}
+  .tc.focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(210,148,42,.25),var(--shadow)}
+  .tc-toggle{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:flex-start;gap:10px;
+    width:100%;min-height:44px}
+  .tc-toggle .tc-title{flex:1;min-width:0}
+  .tc-name{font-family:var(--serif);font-size:21px;font-weight:600;line-height:1.2;overflow-wrap:anywhere}
+  .tc-dates{font-family:var(--mono);font-size:13px;color:var(--amber-deep);margin-top:2px}
+  .tc-caret{flex:none;font-size:18px;color:var(--muted);transition:transform .15s;margin-top:4px}
+  .tc-toggle[aria-expanded="true"] .tc-caret{transform:rotate(180deg)}
+  .chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px 6px;margin:10px 0 0;font-size:15px}
+  .chain a{display:inline-flex;align-items:center;min-height:40px;padding:4px 12px;border-radius:100px;
+    border:1px solid var(--border);background:#fff;color:var(--pine);font-weight:600;text-decoration:none}
+  .chain a:hover{border-color:var(--amber);color:var(--amber-deep)}
+  .chain .n{font-family:var(--mono);font-size:.78em;color:var(--muted);margin-left:-2px}
+  .chain .arr{color:var(--muted)}
+  .tc-meta{display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 0;font-size:14px;color:var(--muted)}
+  .tc-meta b{color:var(--ink)}
+  .tc-notes{margin:10px 0 0;font-size:14px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .tc.open .tc-notes{display:block;overflow:visible}
+  .tc-detail{margin-top:14px;border-top:1px dashed var(--border);padding-top:14px}
+  .tc-detail[hidden]{display:none}
+  .stoplist{list-style:none;margin:0 0 6px;padding:0;display:flex;flex-direction:column;gap:6px}
+  .stoplist li{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+  .stoplist .c{font-family:var(--serif);font-weight:600}
+  .tc-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;align-items:center}
+  .tc-confirm{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#FBF3E2;
+    border:1px solid var(--amber);border-radius:12px;padding:10px 12px}
+  .tc-confirm span{font-weight:600}
+  .te-copy,.te-live-btn{min-height:40px;padding:6px 14px;font-size:13px}
+  .events.te-links{margin-top:0}
+  .events.te-links .ev{min-height:36px;display:inline-flex;align-items:center;padding:3px 12px;font-size:13.5px}
+  .te-stop{margin-bottom:10px}
+  .te-top .te-copy{margin-left:0}
+  .te-top .te-actions{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+  .tp-undated{font-size:14px;color:var(--muted);margin:6px 0 0}
+  .tp-loading{color:var(--muted);padding:40px 0;text-align:center;font-size:17px}
+  .tp-past .tc{opacity:.92}
+  @media(max-width:520px){
+    .wrap.ac-main{padding-left:16px;padding-right:16px}
+    .hero{padding:20px 16px}
+    .tc{padding:12px}
+    .tc-name{font-size:19px}
+  }
+</style>
+</head>
+<body>
+<div id="atlas-chrome"></div>
+<div id="tp-status" class="sr" role="status" aria-live="polite"></div>
+<main id="app" class="wrap ac-main tp-wrap"><p class="tp-loading">Loading trips…</p></main>
+<script src="/atlas/atlas-core.js"></script>
+<script>
+Atlas.mountChrome('trips');
+
+/* ---------- local date helpers (calendar dates, never UTC) ---------- */
+// "Now" can be overridden for tests via window.__TRIPS_NOW (a Date).
+function nowDate() { return (typeof window !== 'undefined' && window.__TRIPS_NOW) ? new Date(window.__TRIPS_NOW.getTime()) : new Date(); }
+function todayMid() { var n = nowDate(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); }
+function parseYMD(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || ''));
+  if (!m) return null;
+  var d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return (d.getMonth() === +m[2] - 1 && d.getDate() === +m[3]) ? d : null;
+}
+function addDays(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
+function dayDiff(a, b) { return Math.round((b.getTime() - a.getTime()) / 86400000); } // whole local days, DST-safe
+function totalNights(trip) {
+  return stopsOf(trip).reduce(function (s, x) { return s + x.nights; }, 0);
+}
+function stopsOf(trip) {
+  return (Array.isArray(trip && trip.stops) ? trip.stops : []).filter(function (s) { return s && s.city; })
+    .map(function (s) { return { city: String(s.city), nights: Math.max(0, parseInt(s.nights, 10) || 0) }; });
+}
+function tripStart(trip) { return parseYMD(trip.start_date); }
+function tripEnd(trip) { var s = tripStart(trip); return s ? addDays(s, totalNights(trip)) : null; }
+function rangeText(a, b) {
+  var t = dayDiff(a, b) === 0 ? Atlas.fmtD(a) : Atlas.fmtRange(a, b);
+  var y = todayMid().getFullYear();
+  return (a.getFullYear() !== y || b.getFullYear() !== y) ? t + ', ' + b.getFullYear() : t;
+}
+function stopRanges(trip) {
+  var s = tripStart(trip); if (!s) return [];
+  var cum = 0;
+  return stopsOf(trip).map(function (st) {
+    var arr = addDays(s, cum), dep = addDays(arr, st.nights);
+    cum += st.nights;
+    return { city: st.city, nights: st.nights, arr: arr, dep: dep, text: rangeText(arr, dep) };
+  });
+}
+
+/* ---------- grouping and countdown ---------- */
+function group(trips, today) {
+  var up = [], some = [], past = [];
+  trips.forEach(function (t) {
+    var s = tripStart(t);
+    if (!s) { some.push(t); return; }
+    (dayDiff(today, tripEnd(t)) >= 0 ? up : past).push(t);
+  });
+  up.sort(function (a, b) { return tripStart(a) - tripStart(b); });
+  past.sort(function (a, b) { return tripStart(b) - tripStart(a); });
+  return { upcoming: up, someday: some, past: past };
+}
+function countdown(trip, today) {
+  var s = tripStart(trip), e = tripEnd(trip);
+  var until = dayDiff(today, s);
+  if (until > 1) return { kind: 'future', num: until, text: until + ' days until ' + trip.name };
+  if (until === 1) return { kind: 'tomorrow', text: 'Tomorrow!' };
+  if (until === 0) return { kind: 'today', text: 'Today!' };
+  var day = dayDiff(s, today) + 1, of = dayDiff(s, e) + 1;
+  return { kind: 'now', text: 'Happening now · day ' + day + ' of ' + of };
+}
+
+/* ---------- state ---------- */
+var state = { status: 'loading', trips: [], err: '', open: {}, confirmDel: '', busy: {}, focusId: '', targetId: '' };
+var liveCache = {};   // "tripId|city|start" -> html of the loaded live events
+var dayKey = '';
+(function () {
+  try { state.targetId = new URLSearchParams(location.search).get('id') || ''; } catch (e) {}
+  if (state.targetId) state.open[state.targetId] = true;
+})();
+
+function say(msg) { var el = document.getElementById('tp-status'); if (el) el.textContent = msg; }
+function safeUrl(u) { return /^https?:\/\//i.test(String(u || '')) ? u : ''; }
+
+/* ---------- rendering ---------- */
+function chainHtml(trip) {
+  var st = stopsOf(trip);
+  if (!st.length) return '';
+  return '<div class="chain" aria-label="Route">' + st.map(function (s, i) {
+    return (i ? '<span class="arr" aria-hidden="true">→</span>' : '')
+      + '<a href="' + Atlas.esc(Atlas.cityUrl(s.city)) + '">' + Atlas.esc(s.city) + '</a>'
+      + '<span class="n">' + s.nights + (s.nights === 1 ? ' night' : ' nights') + '</span>';
+  }).join('') + '</div>';
+}
+function modeText(trip) { return trip.mode === 'fly' ? '✈️ Fly' : '🚗 Drive'; }
+function tripDatesText(trip) {
+  var s = tripStart(trip);
+  return s ? rangeText(s, tripEnd(trip)) : 'Someday';
+}
+
+function heroHtml(trip, today) {
+  var c = countdown(trip, today);
+  var big;
+  var ico = trip.mode === 'fly' ? '✈️' : '🚗';
+  if (c.kind === 'future') big = '<span class="ico" aria-hidden="true">' + ico + '</span><span class="num">' + c.num + '</span> days to go!';
+  else if (c.kind === 'tomorrow') big = '<span class="ico" aria-hidden="true">' + ico + '</span><span class="num">Tomorrow!</span>';
+  else if (c.kind === 'today') big = '<span class="ico" aria-hidden="true">' + ico + '</span><span class="num">Today!</span>';
+  else big = '<span class="ico" aria-hidden="true">' + ico + '</span>' + Atlas.esc(c.text);
+  return '<section class="hero" aria-label="Next trip">'
+    + '<p class="eyebrow">' + (c.kind === 'now' ? 'On the road' : 'Next adventure') + '</p>'
+    + '<p class="hero-big" aria-hidden="true" data-countdown="' + Atlas.esc(c.text) + '">' + big + '</p>'
+    + '<p class="sr">' + Atlas.esc(c.text) + '</p>'
+    + '<h2 class="hero-name">' + Atlas.esc(trip.name) + '</h2>'
+    + '<p class="hero-dates">' + Atlas.esc(tripDatesText(trip)) + '</p>'
+    + chainHtml(trip)
+    + '<button type="button" class="tp-btn" data-action="show" data-id="' + Atlas.esc(trip.id) + '">See the plan</button>'
+    + '</section>';
+}
+
+function eventsHtml(trip, r, today, idx) {
+  var city = r.city, arrISO = Atlas.isoDate(r.arr), depISO = Atlas.isoDate(r.dep);
+  var evs = (Atlas.data.EVENTS || {})[city] || [];
+  var links = evs.length
+    ? '<div class="events te-links">' + evs.map(function (e) {
+        return '<a class="ev" href="' + Atlas.esc(safeUrl(e.u)) + '" target="_blank" rel="noopener" title="' + Atlas.esc(e.d) + '">' + Atlas.esc(e.n) + '</a>';
+      }).join('') + '</div>'
+    : '<p class="te-note">No saved calendar links for this city.</p>';
+  // baked research: only items dated inside this stop's window and not yet past
+  var fe = (Atlas.data.TRIP_EVENTS || {})[city], found = '';
+  if (fe && Array.isArray(fe.items)) {
+    var todayISO = Atlas.isoDate(today);
+    var items = fe.items.filter(function (it) { return it.d && it.d >= todayISO && it.d >= arrISO && it.d <= depISO; });
+    if (items.length) {
+      found = '<div class="te-found"><div class="te-found-head"><span>Events found for <b>' + Atlas.esc(fe.window) + '</b></span>'
+        + '<span class="te-stamp">researched ' + Atlas.esc(fe.foundNice) + '</span></div><ul>'
+        + items.map(function (it) { return '<li><b>' + Atlas.esc(it.n) + '</b>' + (it.m ? ' — ' + Atlas.esc(it.m) : '') + '</li>'; }).join('')
+        + '</ul></div>';
+    }
+  }
+  var key = trip.id + '|' + city + '|' + arrISO;
+  var cached = liveCache[key];
+  return '<div class="te-stop"><div class="te-top"><span class="te-city">' + Atlas.esc(city) + '</span>'
+    + '<span class="te-dates">' + Atlas.esc(r.text) + '</span>'
+    + '<span class="te-actions">'
+    + '<button type="button" class="te-copy te-live-btn" data-action="live" data-key="' + Atlas.esc(key) + '" data-city="' + Atlas.esc(city) + '" data-start="' + arrISO + '" data-end="' + depISO + '">'
+    + (cached ? '↻ Refresh live events' : '⚡ Load live events') + '</button>'
+    + '<button type="button" class="te-copy" data-action="copyreq" data-city="' + Atlas.esc(city) + '" data-range="' + Atlas.esc(r.text) + '">Copy events request</button>'
+    + '</span></div>' + links + found
+    + '<div class="te-live">' + (cached || '') + '</div></div>';
+}
+
+function detailHtml(trip, today) {
+  var s = tripStart(trip), e = tripEnd(trip);
+  var rs = stopRanges(trip), h = '';
+  if (rs.length) {
+    h += '<ul class="stoplist">' + rs.map(function (r) {
+      return '<li><span class="c">' + Atlas.esc(r.city) + '</span><span class="te-dates">' + Atlas.esc(r.text) + '</span></li>';
+    }).join('') + '</ul>';
+  }
+  var ended = s && dayDiff(today, e) < 0;
+  if (!s) {
+    h += '<p class="tp-undated">Pick a start date to see dates and events for each stop.</p>';
+  } else if (!ended && rs.length) {
+    h += '<div class="te-head" style="margin-top:14px">Events along the way</div>'
+      + rs.map(function (r, i) { return eventsHtml(trip, r, today, i); }).join('');
+  }
+  h += actionsHtml(trip, today, s, ended);
+  return h;
+}
+
+function actionsHtml(trip, today, s, ended) {
+  if (!Atlas.auth.parent) return '';
+  var id = Atlas.esc(trip.id), h = '<div class="tc-actions">';
+  if (state.confirmDel === trip.id) {
+    h += '<div class="tc-confirm" role="alertdialog" aria-label="Confirm delete"><span>Delete “' + Atlas.esc(trip.name) + '”?</span>'
+      + '<button type="button" class="tp-btn danger" data-action="delete-yes" data-id="' + id + '"' + (state.busy[trip.id] ? ' disabled' : '') + '>Yes, delete</button>'
+      + '<button type="button" class="tp-btn" data-action="delete-no" data-id="' + id + '">Keep it</button></div>';
+  } else {
+    h += '<a class="tp-btn" href="/atlas/plan.html?trip=' + encodeURIComponent(trip.id) + '">Edit</a>';
+    if (s && dayDiff(today, s) >= 0) h += '<button type="button" class="tp-btn" data-action="countdown" data-id="' + id + '"' + (state.busy[trip.id] ? ' disabled' : '') + '>Show countdown on the planner</button>';
+    if (ended && stopsOf(trip).length) h += '<button type="button" class="tp-btn" data-action="stamp" data-id="' + id + '"' + (state.busy[trip.id] ? ' disabled' : '') + '>Stamp these cities as visited</button>';
+    h += '<button type="button" class="tp-btn danger" data-action="delete" data-id="' + id + '">Delete</button>';
+  }
+  return h + '</div>';
+}
+
+function cardHtml(trip, today) {
+  var open = !!state.open[trip.id];
+  var id = Atlas.esc(trip.id);
+  var meta = [modeText(trip)];
+  if (trip.est_cost != null && trip.est_cost !== '' && isFinite(+trip.est_cost)) meta.push('<b>' + Atlas.esc(Atlas.money(+trip.est_cost)) + '</b> est.');
+  return '<article class="tc' + (open ? ' open' : '') + (state.targetId === trip.id ? ' focus' : '') + '" id="trip-' + id + '">'
+    + '<button type="button" class="tc-toggle" data-action="toggle" data-id="' + id + '" aria-expanded="' + open + '" aria-controls="detail-' + id + '">'
+    + '<span class="tc-title"><span class="tc-name">' + Atlas.esc(trip.name) + '</span>'
+    + '<span class="tc-dates" style="display:block">' + Atlas.esc(tripDatesText(trip)) + '</span></span>'
+    + '<span class="tc-caret" aria-hidden="true">▾</span></button>'
+    + chainHtml(trip)
+    + '<div class="tc-meta">' + meta.map(function (m) { return '<span>' + m + '</span>'; }).join('') + '</div>'
+    + (trip.notes ? '<p class="tc-notes">' + Atlas.esc(trip.notes) + '</p>' : '')
+    + '<div class="tc-detail" id="detail-' + id + '"' + (open ? '' : ' hidden') + '>' + (open ? detailHtml(trip, today) : '') + '</div>'
+    + '</article>';
+}
+
+function groupHtml(title, cls, trips, today) {
+  if (!trips.length) return '';
+  return '<section class="tp-group ' + cls + '"><h2>' + title + '</h2><div class="tp-cards">'
+    + trips.map(function (t) { return cardHtml(t, today); }).join('') + '</div></section>';
+}
+
+function render() {
+  var app = document.getElementById('app');
+  if (!app) return;
+  var today = todayMid();
+  dayKey = Atlas.isoDate(today);
+  var h = '<h1 class="page-title">Trips</h1>';
+  if (state.status === 'loading') {
+    h = '<p class="tp-loading">Loading trips…</p>';
+  } else if (state.status === 'signedout') {
+    h += '<div class="tp-note"><h2>Sign in to see your trips</h2><p>Trips live in the family planner. Sign in there, then come back.</p>'
+      + '<div class="tp-actions"><a class="tp-btn solid" href="/">Go to sign in</a></div></div>';
+  } else if (state.status === 'error') {
+    h += '<div class="tp-note"><h2>Couldn’t load trips</h2><p>Nothing is lost. This is usually temporary.</p>'
+      + '<p class="err">' + Atlas.esc(state.err) + '</p>'
+      + '<div class="tp-actions"><button type="button" class="tp-btn solid" data-action="retry">Try again</button></div></div>';
+  } else if (!state.trips.length) {
+    h += '<div class="tp-note"><h2>No trips yet</h2><p>Where should the Hensels go next? Pick some places and save a trip.</p>'
+      + '<div class="tp-actions"><a class="tp-btn solid" href="/atlas/plan.html">Plan a trip</a><a class="tp-btn" href="/atlas/">Explore places</a></div></div>';
+  } else {
+    var g = group(state.trips, today);
+    if (g.upcoming.length) h += heroHtml(g.upcoming[0], today);
+    if (state.targetId && !state.trips.some(function (t) { return t.id === state.targetId; })) {
+      h += '<p class="tp-undated">That trip isn’t here anymore. It may have been deleted.</p>';
+    }
+    h += groupHtml('Upcoming', 'tp-up', g.upcoming, today)
+      + groupHtml('Someday', 'tp-some', g.someday, today)
+      + groupHtml('Past', 'tp-past', g.past, today);
+  }
+  app.innerHTML = h;
+  afterRender();
+}
+
+function afterRender() {
+  try {
+    if (state.focusId) {
+      var b = document.querySelector('[data-action="toggle"][data-id="' + state.focusId + '"]');
+      if (b && b.focus) b.focus();
+      state.focusId = '';
+    }
+    if (state.scrollId) {
+      var el = document.getElementById('trip-' + state.scrollId);
+      if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      state.scrollId = '';
+    }
+  } catch (e) {}
+}
+
+/* ---------- loading ---------- */
+async function load() {
+  if (!Atlas.auth.signedIn) { state.status = 'signedout'; render(); say('Signed out.'); return; }
+  state.status = 'loading'; render();
+  try {
+    var list = await Atlas.trips.list();
+    state.trips = Array.isArray(list) ? list : [];
+    state.status = 'ok';
+    if (state.targetId) state.scrollId = state.targetId;
+    render();
+    say(state.trips.length + (state.trips.length === 1 ? ' trip loaded.' : ' trips loaded.'));
+  } catch (e) {
+    state.status = 'error';
+    state.err = (e && e.message) || 'Unknown error';
+    render();
+    say('Could not load trips.');
+  }
+}
+
+/* ---------- actions ---------- */
+function findTrip(id) { return state.trips.filter(function (t) { return t.id === id; })[0]; }
+
+async function loadLive(btn) {
+  var c = btn.dataset.city, start = btn.dataset.start, end = btn.dataset.end, key = btn.dataset.key;
+  var stop = btn.closest('.te-stop');
+  var out = stop ? stop.querySelector('.te-live') : null;
+  if (!out) return;
+  var label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Searching…';
+  out.innerHTML = '<div class="te-note">Searching official calendars for <b>' + Atlas.esc(c) + '</b>…</div>';
+  try {
+    var r = await Atlas.fetch('/api/atlas/events?city=' + encodeURIComponent(c) + '&start=' + encodeURIComponent(start) + '&end=' + encodeURIComponent(end));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var data = await r.json();
+    var items = Array.isArray(data.items) ? data.items : [];
+    var html;
+    if (!items.length) {
+      html = '<div class="te-found"><div class="te-found-head"><span>No dated events found for <b>' + Atlas.esc(c) + '</b></span>'
+        + '<span class="te-stamp">searched live ' + Atlas.esc(data.researchedAt || '') + '</span></div>'
+        + '<div class="te-note">Nothing solid landed in your window. Try the calendar links above.</div></div>';
+    } else {
+      html = '<div class="te-found"><div class="te-found-head"><span>⚡ Live events for <b>' + Atlas.esc(c) + '</b></span>'
+        + '<span class="te-stamp">searched live ' + Atlas.esc(data.researchedAt || '') + '</span></div><ul>'
+        + items.map(function (it) {
+            var u = safeUrl(it.u);
+            var name = u ? '<a href="' + Atlas.esc(u) + '" target="_blank" rel="noopener">' + Atlas.esc(it.n) + '</a>' : Atlas.esc(it.n);
+            return '<li><b>' + name + '</b>' + (it.m ? ' — ' + Atlas.esc(it.m) : '') + '</li>';
+          }).join('') + '</ul></div>';
+    }
+    out.innerHTML = html;
+    liveCache[key] = html;
+    btn.textContent = '↻ Refresh live events';
+    say('Live events loaded for ' + c + '.');
+  } catch (e) {
+    out.innerHTML = '<div class="te-found expired">Couldn’t reach the live events service. Use '
+      + '<b>“Copy events request”</b> and paste it to Claude instead.</div>';
+    btn.textContent = label;
+    say('Live events are not available right now.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function copyRequest(btn) {
+  var c = btn.dataset.city, r = btn.dataset.range;
+  var msg = 'Find family-friendly events in ' + c + ' for ' + r + '. Check the event-calendar links for ' + c + ' in my '
+    + 'Family Adventure Atlas (the Time Out–style guide, the official CVB calendar, and the family-event sites) '
+    + 'and summarize what\'s on for those dates for two girls (ages 5 & 9).';
+  var ok = await Atlas.copyText(msg);
+  Atlas.toast(ok
+    ? 'Copied an events request for <b>' + Atlas.esc(c) + '</b> (' + Atlas.esc(r) + '). Paste it to Claude.'
+    : 'Ask Claude: <b>“What events are on in ' + Atlas.esc(c) + ' for ' + Atlas.esc(r) + '?”</b>');
+}
+
+async function addCountdown(trip) {
+  var date = trip.start_date;
+  state.busy[trip.id] = true; render();
+  try {
+    var r = await Atlas.fetch('/api/countdowns');
+    if (!r.ok) throw new Error('Could not check the planner (HTTP ' + r.status + ').');
+    var existing = await r.json();
+    if (!Array.isArray(existing)) existing = [];
+    var dupe = existing.some(function (c) { return c.title === trip.name && String(c.date).slice(0, 10) === date; });
+    if (dupe) { say('Already on the planner.'); Atlas.toast('Already counting down on the planner.'); return; }
+    var p = await Atlas.fetch('/api/countdowns', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: trip.name, icon: trip.mode === 'fly' ? '✈️' : '🚗', date: date })
+    });
+    if (!p.ok) {
+      var j = null; try { j = await p.json(); } catch (_) {}
+      throw new Error((j && j.error) || ('HTTP ' + p.status));
+    }
+    say('Countdown added to the planner.');
+    Atlas.toast('Countdown added to the planner.');
+  } catch (e) {
+    say('Could not add the countdown.');
+    Atlas.toast('Couldn’t add the countdown: ' + Atlas.esc(e.message));
+  } finally {
+    delete state.busy[trip.id]; render();
+  }
+}
+
+async function stampCities(trip) {
+  var visitedOn = Atlas.isoDate(tripEnd(trip));
+  var seen = {}, cities = stopsOf(trip).map(function (s) { return s.city; }).filter(function (c) { return seen[c] ? false : (seen[c] = true); });
+  state.busy[trip.id] = true; render();
+  var done = 0, failed = [];
+  for (var i = 0; i < cities.length; i++) {
+    try { await Atlas.marks.set(cities[i], { visited: true, visited_on: visitedOn }); done++; }
+    catch (e) { failed.push(cities[i] + ' (' + e.message + ')'); }
+  }
+  delete state.busy[trip.id]; render();
+  var msg = failed.length
+    ? 'Stamped ' + done + ', failed: ' + failed.join('; ')
+    : 'Stamped ' + done + (done === 1 ? ' city' : ' cities') + ' as visited.';
+  say(msg); Atlas.toast(Atlas.esc(msg));
+}
+
+async function deleteTrip(trip) {
+  state.busy[trip.id] = true; render();
+  try {
+    await Atlas.trips.remove(trip.id);
+    state.trips = state.trips.filter(function (t) { return t.id !== trip.id; });
+    state.confirmDel = '';
+    say('Trip deleted.'); Atlas.toast('Trip deleted.');
+  } catch (e) {
+    say('Could not delete the trip.'); Atlas.toast('Couldn’t delete: ' + Atlas.esc(e.message));
+  } finally {
+    delete state.busy[trip.id]; render();
+  }
+}
+
+function onClick(ev) {
+  var t = ev.target && ev.target.closest ? ev.target.closest('[data-action]') : null;
+  if (!t) return;
+  var a = t.dataset.action, id = t.dataset.id, trip = id ? findTrip(id) : null;
+  if (a === 'toggle') { state.open[id] = !state.open[id]; state.focusId = id; render(); }
+  else if (a === 'show') { state.open[id] = true; state.scrollId = id; render(); }
+  else if (a === 'retry') load();
+  else if (a === 'live') loadLive(t);
+  else if (a === 'copyreq') copyRequest(t);
+  else if (!trip) return;
+  else if (!Atlas.auth.parent) return;   // parent-only below (server enforces too)
+  else if (a === 'delete') { state.confirmDel = id; render(); }
+  else if (a === 'delete-no') { state.confirmDel = ''; render(); }
+  else if (a === 'delete-yes') deleteTrip(trip);
+  else if (a === 'countdown') addCountdown(trip);
+  else if (a === 'stamp') stampCities(trip);
+}
+
+/* ---------- keep the countdown fresh past midnight ---------- */
+function scheduleMidnight() {
+  var n = nowDate();
+  var next = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 1);
+  setTimeout(function () { checkDay(); scheduleMidnight(); }, Math.max(1000, next - n));
+}
+function checkDay() { if (Atlas.isoDate(todayMid()) !== dayKey && state.status === 'ok') render(); }
+
+document.getElementById('app').addEventListener('click', onClick);
+document.addEventListener('visibilitychange', function () { if (!document.hidden) checkDay(); });
+Atlas.onData(render);
+scheduleMidnight();
+load();
+</script>
+</body>
+</html>

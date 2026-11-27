@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan · Hensel Family Adventure Atlas</title>
+<link rel="stylesheet" href="/atlas/atlas.css">
+<style>
+  .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .pl-steps{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .pl-steps button{width:100%;min-height:44px;border:1.5px solid var(--border);background:var(--card);color:var(--pine);border-radius:10px;
+    font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:4px 2px;line-height:1.15}
+  .pl-steps button b{font-family:var(--mono);font-size:11px;color:var(--amber-deep)}
+  .pl-steps button[aria-current="step"]{background:var(--pine);color:#fff;border-color:var(--pine)}
+  .pl-steps button[aria-current="step"] b{color:var(--amber)}
+  .pl-steps button:disabled{opacity:.5;cursor:not-allowed}
+  .pl-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;box-shadow:var(--shadow);margin-bottom:12px}
+  .pl-card h2{font-family:var(--serif);font-weight:600;font-size:24px;margin:0 0 2px;letter-spacing:-.01em}
+  .pl-card h2:focus{outline:none}
+  .pl-help{color:var(--muted);font-size:14px;margin:0 0 14px}
+  .pl-msg{min-height:0;margin:0 0 10px;font-size:14px;color:var(--pine);font-weight:600}
+  .pl-msg:empty{display:none}
+  .pl-err{margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#FBEDE8;border:1px solid var(--t-hi);color:var(--t-hi);font-size:14px}
+  .pl-select,.pl-text,.pl-date,.pl-area{width:100%;min-height:44px;font-family:var(--sans);font-size:16px;border:1.5px solid var(--border);border-radius:8px;background:var(--paper);color:var(--ink);padding:8px 10px}
+  .pl-area{min-height:84px;resize:vertical}
+  .pl-lab{display:block;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:12px 0 5px}
+  .pl-btn{min-height:44px;padding:8px 16px;font-size:14px}
+  .pl-btn[disabled]{opacity:.5;cursor:not-allowed}
+  .pl-presets{display:flex;flex-wrap:wrap;gap:8px}
+  .pl-presets .qrbtn{min-height:40px}
+  .pl-suggest{margin:14px 0 4px;border:1px solid var(--border);border-radius:10px;padding:0 12px;background:var(--paper)}
+  .pl-suggest>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:600;font-size:14px;color:var(--pine)}
+  .pl-suggest .body{padding:0 0 12px}
+  .pl-tfc{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:10px}
+  .pl-tfc .ip input{width:80px;min-height:30px;font-size:16px}
+  .pl-suggest .tf-card{margin-bottom:8px}
+  .pl-suggest .qrbtn{min-height:40px}
+  .pl-stops{list-style:none;margin:14px 0 8px;padding:0;display:flex;flex-direction:column;gap:8px}
+  .pl-stop{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 10px;border-radius:10px;background:#FBF3E2;border:1px solid var(--amber)}
+  .pl-stop.dragging{opacity:.4}
+  .pl-stop.drop-before{box-shadow:inset 0 3px 0 var(--pine)}
+  .pl-stop.drop-after{box-shadow:inset 0 -3px 0 var(--pine)}
+  .pl-grip{cursor:grab;color:var(--amber-deep);font-size:16px;user-select:none;flex:none;width:18px;text-align:center}
+  .pl-name{flex:1 1 120px;min-width:0;font-weight:700;font-size:15px;color:var(--pine);text-decoration:none;display:flex;flex-direction:column;justify-content:center;min-height:40px}
+  .pl-name small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--muted)}
+  .pl-name:hover span{text-decoration:underline}
+  .pl-ctl{display:inline-flex;align-items:center;gap:4px}
+  .pl-ctl button{min-width:40px;min-height:40px;border:1.5px solid var(--border);background:var(--card);color:var(--pine);border-radius:8px;font-size:16px;font-weight:700;cursor:pointer;line-height:1}
+  .pl-ctl button:hover:not([disabled]){border-color:var(--pine2)}
+  .pl-ctl button[disabled]{opacity:.35;cursor:not-allowed}
+  .pl-ctl output{min-width:62px;text-align:center;font-family:var(--mono);font-size:13px}
+  .pl-ctl.mv{margin-left:auto}
+  .pl-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .pl-empty{color:var(--muted);font-style:italic;font-size:14px;margin:14px 0 6px}
+  .pl-dates{list-style:none;margin:14px 0 0;padding:0}
+  .pl-dates li{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--border);font-size:15px;flex-wrap:wrap}
+  .pl-dates li:first-child{border-top:none}
+  .pl-dates b{font-family:var(--mono);font-size:14px;color:var(--amber-deep)}
+  .pl-fly{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin-bottom:14px}
+  .pl-fly .ip input{width:90px;min-height:30px;font-size:16px}
+  .pl-fly select{min-height:44px;font-size:15px;border:1.5px solid var(--border);border-radius:8px;background:var(--paper);padding:4px 8px}
+  .pl-fly .assume label{text-transform:uppercase}
+  .pl-note{font-size:13px;color:var(--muted);margin:0 0 10px}
+  .pl-modes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .pl-mode{display:block;text-align:left;font-family:var(--sans);color:var(--ink);cursor:pointer;border:1.5px solid var(--border);background:var(--card);border-radius:10px;padding:12px;min-height:44px}
+  .pl-mode[aria-pressed="true"]{border-color:var(--pine);box-shadow:0 0 0 2px var(--pine) inset;background:#F4F8F2}
+  .pl-mode[disabled]{opacity:.55;cursor:not-allowed}
+  .pl-mode span{display:block}
+  .pl-mode .m{font-size:.8rem;text-transform:uppercase;letter-spacing:.04em;font-weight:600;color:var(--muted)}
+  .pl-mode .t{font-family:var(--mono);font-size:1.4rem;font-weight:800;font-variant-numeric:tabular-nums}
+  .pl-mode .b{font-size:.78rem;color:var(--muted);line-height:1.4}
+  .pl-mode .win{display:inline-block;margin-top:6px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:#2e9e5b;border-radius:100px;padding:2px 9px}
+  .pl-verdict{margin:10px 0 0;font-size:15px;font-weight:600}
+  @media(max-width:520px){.pl-modes{grid-template-columns:1fr}}
+  .pl-bar{position:sticky;bottom:0;z-index:5;margin:0 -24px;padding:10px 24px calc(10px + env(safe-area-inset-bottom));background:var(--paper);border-top:2px solid var(--pine);
+    display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
+  @media(max-width:520px){.pl-bar{margin:0 -16px;padding-left:16px;padding-right:16px}}
+  .pl-tot{font-size:13px;color:var(--muted);line-height:1.25}
+  .pl-tot b{display:block;font-family:var(--mono);font-size:20px;color:var(--amber-deep);font-variant-numeric:tabular-nums}
+  .pl-nav{display:flex;gap:8px}
+  .pl-assume{font-size:13px;color:var(--muted);margin:14px 0 0}
+  .pl-assume .linkbtn{min-height:40px;font-size:13px;text-decoration:underline}
+  .pl-link{display:inline-block;min-height:40px;line-height:40px}
+  .pl-parent{margin:14px 0 0;padding:12px;border-radius:10px;background:var(--paper);border:1px dashed var(--border);font-size:14px}
+  .pl-save{width:100%;margin-top:14px;justify-content:center}
+</style>
+</head>
+<body>
+<div id="atlas-chrome"></div>
+<main id="app" class="wrap ac-main"></main>
+<script src="/atlas/atlas-core.js"></script>
+<script>
+Atlas.mountChrome('plan');
+(function(){
+  var E = Atlas.esc, money = Atlas.money, app = document.getElementById('app');
+  var STEPS = [['where','Where'],['when','When'],['how','How'],['save','Cost & save']];
+  var DRAFT_KEY = 'atlas_draft', FARE_KEY = 'atlas_draft_fare';
+  var MAX_STOPS = 20;
+
+  /* ---------- state ---------- */
+  function blank(){ return { name:'', start_date:null, stops:[], mode:'drive', notes:'' }; }
+  var S = {
+    step: 0, draft: blank(), fare: { dep:'GSP', airfare:0 }, fareNote:'', fareBusy:false,
+    saveErr:'', saving:false, done:false, msg:'', focus:null, focusHeading:false,
+    tf: { budget:2000, nights:4, results:null, open:false }, dragIdx:null
+  };
+
+  /* ---------- storage (always guarded) ---------- */
+  function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
+  function lsSet(k, v){ try { localStorage.setItem(k, v); } catch(e){} }
+  function lsDel(k){ try { localStorage.removeItem(k); } catch(e){} }
+  function isDate(s){ return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s); }
+  function cleanStops(arr){
+    var C = Atlas.data.COORDS || {};
+    return (Array.isArray(arr) ? arr : []).filter(function(s){ return s && typeof s.city === 'string' && C[s.city]; })
+      .slice(0, MAX_STOPS).map(function(s){ return { city:s.city, nights:clampN(s.nights) }; });
+  }
+  function clampN(n){ n = Math.round(parseFloat(n)); return isFinite(n) ? Math.min(30, Math.max(0, n)) : 0; }
+  function loadDraft(){
+    var d = blank();
+    try {
+      var j = JSON.parse(lsGet(DRAFT_KEY));
+      if (j && typeof j === 'object') {
+        if (j.id != null) d.id = j.id;
+        d.name = typeof j.name === 'string' ? j.name : '';
+        d.start_date = isDate(j.start_date) ? j.start_date : null;
+        d.stops = cleanStops(j.stops);
+        d.mode = j.mode === 'fly' ? 'fly' : 'drive';
+        d.notes = typeof j.notes === 'string' ? j.notes : '';
+      }
+    } catch(e){}
+    try {
+      var f = JSON.parse(lsGet(FARE_KEY));
+      if (f && typeof f === 'object') {
+        var codes = Atlas.DEP_OPTS.map(function(o){ return o[0]; });
+        S.fare = { dep: codes.indexOf(f.dep) >= 0 ? f.dep : 'GSP', airfare: Math.max(0, parseFloat(f.airfare) || 0) };
+      }
+    } catch(e){}
+    return d;
+  }
+  function persist(){
+    if (S.done) return;
+    lsSet(DRAFT_KEY, JSON.stringify(S.draft));
+    lsSet(FARE_KEY, JSON.stringify(S.fare));
+  }
+  function clearDraft(){ S.done = true; lsDel(DRAFT_KEY); lsDel(FARE_KEY); }
+
+  /* ---------- derived ---------- */
+  function stops(){ return S.draft.stops; }
+  function trip(){
+    if (!stops().length) return null;
+    try { return Atlas.tripCost(stops()); } catch(e){ return null; }
+  }
+  function fly(t){
+    if (!t) return null;
+    try { return Atlas.flyCost({ stops:stops(), dep:S.fare.dep, airfare:S.fare.airfare, trip:t }); } catch(e){ return null; }
+  }
+  function totals(){
+    var t = trip(), f = fly(t);
+    var total = !t ? 0 : (S.draft.mode === 'fly' && f ? f.flyTotal : t.total);
+    return { t:t, f:f, total:total };
+  }
+  function autoName(){
+    var c = stops().map(function(s){ return s.city; });
+    var n;
+    if (!c.length) n = 'My trip';
+    else if (c.length === 1) n = c[0] + ' trip';
+    else n = c.slice(0, -1).join(', ') + ' & ' + c[c.length - 1] + ' trip';
+    return n.length > 80 ? n.slice(0, 77) + '…' : n;
+  }
+  function parseISO(s){
+    if (!isDate(s)) return null;
+    var p = s.split('-').map(Number);
+    return new Date(p[0], p[1] - 1, p[2]);
+  }
+  function plural(n, w){ return n + ' ' + w + (n === 1 ? '' : 's'); }
+
+  /* ---------- mutations ---------- */
+  function changed(){ persist(); render(); }
+  function addCity(city){
+    if (stops().length >= MAX_STOPS) return 'Trips are limited to ' + MAX_STOPS + ' stops.';
+    if (!(Atlas.data.COORDS || {})[city] || !(Atlas.data.CITIES || {})[city]) return null;
+    if (stops().some(function(s){ return s.city === city; })) return 'dup';
+    stops().push({ city:city, nights:clampN(Atlas.settings.get().nights) });
+    return 'ok';
+  }
+  function move(i, j){
+    var a = stops();
+    if (j < 0 || j >= a.length || i === j) return;
+    a.splice(j, 0, a.splice(i, 1)[0]);
+  }
+
+  /* ---------- rendering ---------- */
+  function stepperHTML(){
+    var none = !stops().length;
+    return '<ol class="pl-steps" aria-label="Plan steps">' + STEPS.map(function(s, i){
+      return '<li><button type="button" data-act="goto" data-step="' + i + '"' + (i === S.step ? ' aria-current="step"' : '') +
+        (i > 0 && none ? ' disabled' : '') + '><b>' + (i + 1) + '</b>' + E(s[1]) + '</button></li>';
+    }).join('') + '</ol>';
+  }
+  function stopRows(){
+    var a = stops(), D = Atlas.data;
+    return a.map(function(s, i){
+      var c = E(s.city), drive = D.CITIES[s.city] && D.CITIES[s.city].drive;
+      return '<li class="pl-stop" draggable="true" data-i="' + i + '">' +
+        '<span class="pl-grip" aria-hidden="true" title="Drag to reorder">⠿</span>' +
+        '<a class="pl-name" href="' + E(Atlas.cityUrl(s.city)) + '"><span>' + (i + 1) + '. ' + c + '</span>' + (drive ? '<small>' + E(drive) + ' from home</small>' : '') + '</a>' +
+        '<span class="pl-ctl" role="group" aria-label="Nights in ' + c + '">' +
+          '<button type="button" data-act="dec" data-i="' + i + '" aria-label="Fewer nights in ' + c + '"' + (s.nights <= 0 ? ' disabled' : '') + '>−</button>' +
+          '<output>' + plural(s.nights, 'night') + '</output>' +
+          '<button type="button" data-act="inc" data-i="' + i + '" aria-label="More nights in ' + c + '"' + (s.nights >= 30 ? ' disabled' : '') + '>+</button></span>' +
+        '<span class="pl-ctl mv">' +
+          '<button type="button" data-act="up" data-i="' + i + '" aria-label="Move ' + c + ' up"' + (i === 0 ? ' disabled' : '') + '>↑</button>' +
+          '<button type="button" data-act="down" data-i="' + i + '" aria-label="Move ' + c + ' down"' + (i === a.length - 1 ? ' disabled' : '') + '>↓</button>' +
+          '<button type="button" data-act="rm" data-i="' + i + '" aria-label="Remove ' + c + '">✕</button></span>' +
+      '</li>';
+    }).join('');
+  }
+  function suggestHTML(){
+    var r = S.tf.results, out = '';
+    if (r) {
+      if (!r.length) out = '<p class="tf-empty">Nothing fits that budget. Try more money or more nights.</p>';
+      else out = r.map(function(c, idx){
+        return '<div class="tf-card"><div class="tf-top">' + E(c.route.join(' → ')) + '</div>' +
+          '<div class="tf-meta">' + E(c.nightsArr.join('+')) + ' nights · ' + c.stops + ' stop' + (c.stops > 1 ? 's' : '') + ' · ~' + Math.round(c.miles).toLocaleString() + ' mi</div>' +
+          '<div class="tf-tot">Total <b>' + E(money(c.tot)) + '</b> · ≈ ' + E(money(c.headroom)) + ' to spare</div>' +
+          '<button type="button" class="qrbtn" data-act="usetf" data-i="' + idx + '">Use this trip</button></div>';
+      }).join('');
+    }
+    return '<details class="pl-suggest" id="pl-suggest"' + (S.tf.open ? ' open' : '') + '><summary>Suggest trips for my budget</summary><div class="body">' +
+      '<div class="pl-tfc"><div class="assume"><label for="pl-tfb">Budget</label><div class="ip"><span>$</span><input id="pl-tfb" type="number" inputmode="numeric" step="100" min="0" value="' + E(S.tf.budget) + '"></div></div>' +
+      '<div class="assume"><label for="pl-tfn">Nights</label><div class="ip"><input id="pl-tfn" type="number" inputmode="numeric" step="1" min="1" value="' + E(S.tf.nights) + '"></div></div>' +
+      '<button type="button" class="qrbtn solid pl-btn" data-act="findtf">Find trips</button></div>' +
+      '<div id="pl-tfres" aria-live="polite">' + out + '</div></div></details>';
+  }
+  function whereHTML(){
+    var D = Atlas.data, have = {};
+    stops().forEach(function(s){ have[s.city] = 1; });
+    var opts = Object.keys(D.CITIES).filter(function(c){ return !have[c]; }).sort().map(function(c){
+      return '<option value="' + E(c) + '">' + E(c) + (D.CITIES[c].drive ? ' · ' + E(D.CITIES[c].drive) : '') + '</option>';
+    }).join('');
+    var presets = Object.keys(D.PRESETS).map(function(k){
+      return '<button type="button" class="qrbtn" data-act="preset" data-k="' + E(k) + '">' + E(k) + '</button>';
+    }).join('');
+    var n = stops().length;
+    return '<h2 tabindex="-1" id="pl-h">Where to?</h2><p class="pl-help">Build your list of stops from any of these, then set nights for each.</p>' +
+      '<label class="sr-only" for="pl-city">Add a city</label><select class="pl-select" id="pl-city"><option value="">+ Add a city…</option>' + opts + '</select>' +
+      '<span class="pl-lab">Quick routes</span><div class="pl-presets">' + presets + '</div>' +
+      suggestHTML() +
+      (n ? '<ol class="pl-stops" id="pl-stops">' + stopRows() + '</ol>' : '<p class="pl-empty">No stops yet. Add a city above to begin.</p>') +
+      '<div class="pl-actions"><button type="button" class="qrbtn pl-btn" data-act="best"' + (n < 2 ? ' disabled' : '') + '>Best order</button>' +
+      '<button type="button" class="linkbtn pl-btn" data-act="reset"' + (n || S.draft.id || S.draft.name || S.draft.notes ? '' : ' disabled') + '>Start over</button></div>' +
+      (n > 1 ? '<p class="pl-note" style="margin-top:8px">Drag ⠿ or use the arrows to reorder.</p>' : '');
+  }
+  function whenHTML(){
+    var d = S.draft, start = parseISO(d.start_date), rows = '';
+    if (start) {
+      var cum = 0;
+      rows = '<ol class="pl-dates">' + stops().map(function(s){
+        var arr = new Date(start); arr.setDate(arr.getDate() + cum);
+        var dep = new Date(arr); dep.setDate(dep.getDate() + s.nights);
+        cum += s.nights;
+        return '<li><a href="' + E(Atlas.cityUrl(s.city)) + '">' + E(s.city) + '</a><b>' + E(Atlas.fmtRange(arr, dep)) + '</b></li>';
+      }).join('') + '</ol>';
+    }
+    return '<h2 tabindex="-1" id="pl-h">When?</h2><p class="pl-help">Optional. Pick a start date to see dates for each stop, or leave it as someday.</p>' +
+      '<label class="pl-lab" for="pl-start">Trip start</label>' +
+      '<div class="pl-actions"><input class="pl-date" id="pl-start" type="date" style="max-width:220px" value="' + E(d.start_date || '') + '">' +
+      '<button type="button" class="qrbtn pl-btn" data-act="someday"' + (d.start_date ? '' : ' disabled') + '>Someday</button></div>' +
+      (start ? rows : '<p class="pl-empty">No date set. That is fine for now.</p>');
+  }
+  function compareHTML(){
+    var x = totals(), t = x.t, f = x.f;
+    if (!t || !f) return '';
+    var far = f.far, mode = S.draft.mode, canFly = f.airfare > 0 || mode === 'fly';
+    var dest = far ? S.fare.dep + ' → ' + (far.airport || '?') + ' (' + far.city + ')' : '';
+    var toBk = f.toAirport > 0 ? ' · drive to ' + S.fare.dep + ' ' + money(f.toAirport) : '';
+    var drive = '<button type="button" class="pl-mode" data-act="mode" data-mode="drive" aria-pressed="' + (mode === 'drive') + '">' +
+      '<span class="m">Drive</span><span class="t">' + E(money(t.total)) + '</span>' +
+      '<span class="b">fuel ' + E(money(t.fuel)) + ' · lodging ' + E(money(t.lodge)) + ' · food ' + E(money(t.food)) + ' · +' + E(t.pct) + '%</span>' +
+      (f.winner === 'drive' ? '<span class="win">Cheaper</span>' : '') + '</button>';
+    var flyc = '<button type="button" class="pl-mode" data-act="mode" data-mode="fly" aria-pressed="' + (mode === 'fly') + '"' + (canFly ? '' : ' disabled') + '>' +
+      '<span class="m">Fly</span><span class="t">' + (f.airfare > 0 ? E(money(f.flyTotal)) : '—') + '</span>' +
+      '<span class="b">airfare ' + (f.airfare > 0 ? E(money(f.airfare)) : '(enter above)') + E(toBk) + ' · rental ' + E(money(f.rental)) + ' · local gas ' + E(money(f.localGas)) + ' · lodging ' + E(money(f.lodge)) + ' · food ' + E(money(f.food)) + '</span>' +
+      (f.winner === 'fly' ? '<span class="win">Cheaper</span>' : '') + '</button>';
+    var verdict = f.airfare > 0
+      ? '<p class="pl-verdict">' + (f.winner === 'fly' ? 'Flying' : 'Driving') + ' is cheaper by <b>' + E(money(f.delta)) + '</b>.</p>'
+      : '<p class="pl-note" style="margin-top:10px">Enter a round-trip airfare for the whole party to compare. Driving is the default.</p>';
+    return (dest ? '<p class="pl-note">Fly ' + E(dest) + '</p>' : '') + '<div class="pl-modes" role="group" aria-label="Travel mode">' + drive + flyc + '</div>' + verdict;
+  }
+  function howHTML(){
+    var opts = Atlas.DEP_OPTS.map(function(o){
+      var lab = o[0] + (o[1] ? ' · ' + o[1] + ' (+drive)' : ' · Greenville (home)');
+      return '<option value="' + E(o[0]) + '"' + (o[0] === S.fare.dep ? ' selected' : '') + '>' + E(lab) + '</option>';
+    }).join('');
+    return '<h2 tabindex="-1" id="pl-h">Drive or fly?</h2><p class="pl-help">Compare the two. Pick how you will go.</p>' +
+      '<div class="pl-fly"><div class="assume"><label for="pl-dep">Depart from</label><select id="pl-dep">' + opts + '</select></div>' +
+      '<div class="assume"><label for="pl-fare">Airfare, whole party</label><div class="ip"><span>$</span><input id="pl-fare" type="number" inputmode="decimal" step="10" min="0" placeholder="0" value="' + (S.fare.airfare > 0 ? E(S.fare.airfare) : '') + '"></div></div>' +
+      '<button type="button" class="qrbtn pl-btn" data-act="fare"' + (S.fareBusy ? ' disabled' : '') + '>Look up fares</button></div>' +
+      '<p class="pl-note" id="pl-farenote" role="status" aria-live="polite">' + E(S.fareNote) + '</p>' +
+      '<div id="pl-compare">' + compareHTML() + '</div>';
+  }
+  function saveHTML(){
+    var x = totals(), t = x.t, f = x.f, d = S.draft;
+    if (!t) return '';
+    function row(label, val, cls){ return '<div class="ts-row' + (cls ? ' ' + cls : '') + '"><span>' + label + '</span><b>' + E(money(val)) + '</b></div>'; }
+    var rows;
+    if (d.mode === 'fly' && f) {
+      var sub = f.airfare + f.toAirport + f.rental + f.localGas + f.lodge + f.food;
+      rows = row('Airfare' + (f.airfare > 0 ? '' : ' (not entered)'), f.airfare) +
+        (f.toAirport > 0 ? row('Drive to ' + E(f.dep), f.toAirport) : '') +
+        row('Rental car (' + plural(f.days, 'day') + ')', f.rental) + row('Local gas', f.localGas) +
+        row('Lodging (' + plural(t.totalNights, 'night') + ')', f.lodge) + row('Food (' + plural(f.days, 'day') + ')', f.food) +
+        row('Subtotal', sub, 'sub') + row('Buffer (' + E(f.pct) + '%)', f.flyTotal - sub) + row('Total, flying', f.flyTotal, 'total');
+    } else {
+      rows = row('Fuel (~' + Math.round(t.miles).toLocaleString() + ' mi)', t.fuel) + row('Lodging (' + plural(t.totalNights, 'night') + ')', t.lodge) +
+        row('Food (' + plural(t.days, 'day') + ')', t.food) + row('Subtotal', t.subtotal, 'sub') + row('Buffer (' + E(t.pct) + '%)', t.buffer) + row('Total, driving', t.total, 'total');
+    }
+    var parent = Atlas.auth.parent;
+    return '<h2 tabindex="-1" id="pl-h">Cost &amp; save</h2><p class="pl-help">Check the numbers, name the trip, and save it.</p>' +
+      '<div class="tripsummary">' + rows + '</div>' +
+      (d.mode === 'fly' && f && f.airfare <= 0 ? '<p class="pl-note">No airfare entered, so this fly total leaves flights out. Add one in step 3.</p>' : '') +
+      '<label class="pl-lab" for="pl-name">Trip name</label><input class="pl-text" id="pl-name" type="text" maxlength="80" value="' + E(d.name || autoName()) + '">' +
+      '<label class="pl-lab" for="pl-notes">Notes (optional)</label><textarea class="pl-area" id="pl-notes" maxlength="2000">' + E(d.notes) + '</textarea>' +
+      (parent
+        ? '<button type="button" class="qrbtn solid pl-btn pl-save" data-act="save"' + (S.saving ? ' disabled' : '') + '>' + (S.saving ? 'Saving…' : (d.id ? 'Save changes' : 'Save trip')) + '</button>'
+        : '<p class="pl-parent">A parent needs to be signed in on the Planner to save trips. Your draft is kept on this device.</p>') +
+      '<div id="pl-saveerr" role="alert">' + (S.saveErr ? '<p class="pl-err">' + E(S.saveErr) + '</p>' : '') + '</div>';
+  }
+  function assumeLine(){
+    var s = Atlas.settings.get();
+    return '<p class="pl-assume">Assumptions: hotel ' + E(money(s.hotel)) + '/night where no rate is researched · gas ' + E(money(s.gas)) + ' at ' + E(s.mpg) + ' mpg · food ' + E(money(s.food)) +
+      '/day · ' + E(s.adults) + ' adult' + (s.adults === 1 ? '' : 's') + ', ' + E(s.kids) + ' kid' + (s.kids === 1 ? '' : 's') +
+      ' <button type="button" class="linkbtn" data-act="settings">Change</button></p>';
+  }
+  function barHTML(){
+    var x = totals(), n = stops().length, nights = x.t ? x.t.totalNights : 0;
+    var back = S.step > 0 ? '<button type="button" class="qrbtn pl-btn" data-act="back">Back</button>' : '';
+    var next = S.step < STEPS.length - 1 ? '<button type="button" class="qrbtn solid pl-btn" data-act="next"' + (n ? '' : ' disabled') + '>Next: ' + E(STEPS[S.step + 1][1]) + '</button>' : '';
+    return '<div class="pl-bar"><div class="pl-tot">' + plural(n, 'stop') + ' · ' + plural(nights, 'night') + (S.draft.mode === 'fly' ? ' · flying' : '') +
+      '<b id="pl-total">' + (n ? E(money(x.total)) : '$0') + '</b></div><div class="pl-nav">' + back + next + '</div></div>';
+  }
+  function render(){
+    var body = [whereHTML, whenHTML, howHTML, saveHTML][S.step]();
+    app.innerHTML = '<h1 class="page-title">Plan a trip</h1>' + stepperHTML() +
+      '<p class="sr-only" id="pl-live" role="status" aria-live="polite">Step ' + (S.step + 1) + ' of 4: ' + E(STEPS[S.step][1]) + '</p>' +
+      '<p class="pl-msg" id="pl-msg" role="status" aria-live="polite">' + E(S.msg) + '</p>' +
+      '<section class="pl-card">' + body + '</section>' + barHTML() + assumeLine();
+    if (S.focusHeading) { var h = document.getElementById('pl-h'); if (h) h.focus(); S.focusHeading = false; }
+    else if (S.focus) {
+      for (var i = 0; i < S.focus.length; i++) { var el = app.querySelector(S.focus[i]); if (el && !el.disabled) { el.focus(); break; } }
+    }
+    S.focus = null;
+  }
+  function setMsg(m){ S.msg = m; var el = document.getElementById('pl-msg'); if (el) el.textContent = m; }
+  function goStep(i){
+    if (i < 0 || i >= STEPS.length) return;
+    if (i > 0 && !stops().length) return;
+    S.step = i; S.focusHeading = true; S.saveErr = ''; render();
+    try { window.scrollTo(0, 0); } catch(e){}
+  }
+  function updateCompare(){
+    var c = document.getElementById('pl-compare'); if (c) c.innerHTML = compareHTML();
+    var n = document.getElementById('pl-farenote'); if (n) n.textContent = S.fareNote;
+    var t = document.getElementById('pl-total'); if (t) t.textContent = stops().length ? money(totals().total) : '$0';
+  }
+
+  /* ---------- fare lookup (same query as the old page) ---------- */
+  async function fetchFare(){
+    var far = Atlas.farthestStop(stops());
+    if (!far) { S.fareNote = 'Add a stop first.'; return updateCompare(); }
+    if (!far.airport) { S.fareNote = 'No airport mapped for ' + far.city + '. Enter airfare by hand.'; return updateCompare(); }
+    var sv = S.draft.start_date;
+    if (!sv) { S.fareNote = 'Set a trip start date in step 2 to look up fares.'; return updateCompare(); }
+    var totalNights = stops().reduce(function(s, x){ return s + x.nights; }, 0);
+    var start = parseISO(sv), ret = new Date(start); ret.setDate(ret.getDate() + Math.max(1, totalNights));
+    var st = Atlas.settings.get(), adults = Math.max(1, Math.round(st.adults)), kids = Math.max(0, Math.round(st.kids));
+    var gas = st.gas, mpg = st.mpg || 25;
+    S.fareBusy = true; S.fareNote = 'Searching GSP, ATL & CLT…'; render();
+    try {
+      var results = await Promise.all(Atlas.DEP_OPTS.map(async function(o){
+        var code = o[0];
+        try {
+          var q = '/api/atlas/flights?from=' + code + '&to=' + far.airport + '&depart=' + sv + '&return=' + Atlas.isoDate(ret) + '&adults=' + adults + '&children=' + kids;
+          var r = await Atlas.fetch(q), d = await r.json();
+          var cash = d && d.bestCash && d.bestCash.effectiveUsd;
+          return { code:code, cash:(typeof cash === 'number' ? cash : null), d:d };
+        } catch(_) { return { code:code, cash:null }; }
+      }));
+      var priced = results.filter(function(x){ return x.cash != null; });
+      if (!priced.length) {
+        var d0 = (results[0] || {}).d;
+        if (d0 && d0.sources && d0.sources.serpapi && d0.sources.serpapi.configured === false && d0.sources.kiwi && d0.sources.kiwi.configured === false)
+          S.fareNote = 'Live fares are not set up yet. Enter airfare by hand.';
+        else S.fareNote = 'No fares found. Enter airfare by hand.';
+      } else {
+        priced.forEach(function(x){ x.net = x.cash + Atlas.airportDriveFuel(x.code, gas, mpg); });
+        priced.sort(function(a, b){ return a.net - b.net; });
+        var best = priced[0];
+        S.fare.dep = best.code; S.fare.airfare = Math.round(best.cash);
+        var others = priced.slice(1).map(function(x){ return x.code + ' ' + money(x.cash); }).join(' · ');
+        S.fareNote = 'Cheapest net: ' + best.code + ' ' + money(best.cash) + ' for ' + (adults + kids) + (others ? ' · vs ' + others : '');
+        persist();
+      }
+    } catch(e) { S.fareNote = 'Fare lookup failed. Enter airfare by hand.'; }
+    S.fareBusy = false; render();
+  }
+
+  /* ---------- save ---------- */
+  function go(url){ window.location.assign(url); }
+  async function save(){
+    if (S.saving || !Atlas.auth.parent) return;
+    var d = S.draft, x = totals();
+    if (!stops().length || !x.t) return;
+    var payload = {
+      name: (d.name || autoName()).trim() || autoName(),
+      start_date: d.start_date || null,
+      stops: stops().map(function(s){ return { city:s.city, nights:s.nights }; }),
+      mode: d.mode === 'fly' ? 'fly' : 'drive',
+      est_cost: Math.round(x.total * 100) / 100,
+      notes: d.notes || ''
+    };
+    S.saving = true; S.saveErr = ''; render();
+    try {
+      var t = d.id != null ? await Atlas.trips.update(d.id, payload) : await Atlas.trips.create(payload);
+      clearDraft();
+      go('/atlas/trips.html?id=' + encodeURIComponent(t && t.id != null ? t.id : d.id));
+    } catch(e) {
+      S.saving = false; S.saveErr = (e && e.message) || 'Could not save this trip.'; persist(); render();
+    }
+  }
+
+  /* ---------- events ---------- */
+  app.addEventListener('click', function(ev){
+    var b = ev.target.closest ? ev.target.closest('[data-act]') : null;
+    if (!b || b.disabled) return;
+    var act = b.getAttribute('data-act'), i = parseInt(b.getAttribute('data-i'), 10), a = stops();
+    switch (act) {
+      case 'goto': return goStep(parseInt(b.getAttribute('data-step'), 10));
+      case 'next': return goStep(S.step + 1);
+      case 'back': return goStep(S.step - 1);
+      case 'inc': a[i].nights = clampN(a[i].nights + 1); S.focus = ['[data-act="inc"][data-i="' + i + '"]', '[data-act="dec"][data-i="' + i + '"]']; return changed();
+      case 'dec': a[i].nights = clampN(a[i].nights - 1); S.focus = ['[data-act="dec"][data-i="' + i + '"]', '[data-act="inc"][data-i="' + i + '"]']; return changed();
+      case 'up': move(i, i - 1); S.focus = ['[data-act="up"][data-i="' + (i - 1) + '"]', '[data-act="down"][data-i="' + (i - 1) + '"]']; return changed();
+      case 'down': move(i, i + 1); S.focus = ['[data-act="down"][data-i="' + (i + 1) + '"]', '[data-act="up"][data-i="' + (i + 1) + '"]']; return changed();
+      case 'rm': var gone = a.splice(i, 1)[0]; setMsg('Removed ' + gone.city + '.'); S.focus = ['#pl-city']; return changed();
+      case 'best':
+        var order = Atlas.recommendRoute(a), by = {};
+        a.forEach(function(s){ by[s.city] = s; });
+        S.draft.stops = order.map(function(c){ return by[c]; });
+        setMsg('Best order: ' + order.join(' → ')); S.focus = ['[data-act="best"]']; return changed();
+      case 'reset':
+        if (typeof window.confirm === 'function' && !window.confirm('Clear this trip and start over?')) return;
+        clearDraftState(); return render();
+      case 'preset':
+        var names = Atlas.data.PRESETS[b.getAttribute('data-k')] || [], added = 0;
+        names.forEach(function(c){ if (addCity(c) === 'ok') added++; });
+        setMsg(added ? 'Added ' + plural(added, 'stop') + ' from ' + b.getAttribute('data-k') + '.' : 'Those stops are already in your trip.');
+        return changed();
+      case 'findtf':
+        S.tf.budget = parseFloat(document.getElementById('pl-tfb').value) || 0;
+        S.tf.nights = Math.max(1, parseInt(document.getElementById('pl-tfn').value, 10) || 1);
+        try { S.tf.results = Atlas.findTrips({ budget:S.tf.budget, nights:S.tf.nights }); } catch(e){ S.tf.results = []; }
+        S.tf.open = true; return render();
+      case 'usetf':
+        var c = (S.tf.results || [])[i]; if (!c) return;
+        S.draft.stops = c.route.map(function(city, k){ return { city:city, nights:clampN(c.nightsArr[k]) }; });
+        S.tf.open = false; setMsg('Loaded ' + c.route.join(' → ') + '.'); return changed();
+      case 'someday': S.draft.start_date = null; return changed();
+      case 'mode': S.draft.mode = b.getAttribute('data-mode') === 'fly' ? 'fly' : 'drive'; persist(); S.focus = ['[data-act="mode"][data-mode="' + S.draft.mode + '"]']; return render();
+      case 'fare': return fetchFare();
+      case 'save': return save();
+      case 'settings':
+        var gear = document.querySelector('.ac-gear');
+        if (gear) { var dr = document.getElementById('ac-drawer'); if (!dr || dr.hidden) gear.click(); }
+        else setMsg('Use the gear button at the top to change assumptions.');
+        return;
+    }
+  });
+  app.addEventListener('change', function(ev){
+    var t = ev.target;
+    if (t.id === 'pl-city') {
+      var city = t.value; if (!city) return;
+      var r = addCity(city);
+      setMsg(r === 'ok' ? 'Added ' + city + '.' : r === 'dup' ? city + ' is already in your trip.' : (r || ''));
+      S.focus = ['#pl-city']; changed();
+    } else if (t.id === 'pl-start') {
+      S.draft.start_date = isDate(t.value) ? t.value : null; changed();
+    } else if (t.id === 'pl-dep') {
+      S.fare.dep = t.value; persist(); updateCompare();
+    }
+  });
+  app.addEventListener('input', function(ev){
+    var t = ev.target;
+    if (t.id === 'pl-name') { S.draft.name = t.value === autoName() ? '' : t.value; persist(); }
+    else if (t.id === 'pl-notes') { S.draft.notes = t.value; persist(); }
+    else if (t.id === 'pl-fare') {
+      S.fare.airfare = Math.max(0, parseFloat(t.value) || 0);
+      if (S.fare.airfare <= 0 && S.draft.mode === 'fly') S.draft.mode = 'drive';
+      persist(); updateCompare();
+    }
+  });
+  app.addEventListener('toggle', function(ev){ if (ev.target && ev.target.id === 'pl-suggest') S.tf.open = ev.target.open; }, true);
+  // drag and drop (the arrow buttons cover touch and keyboard)
+  app.addEventListener('dragstart', function(ev){
+    var li = ev.target.closest && ev.target.closest('.pl-stop'); if (!li) return;
+    S.dragIdx = parseInt(li.getAttribute('data-i'), 10); li.classList.add('dragging');
+    if (ev.dataTransfer) { ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', String(S.dragIdx)); } catch(e){} }
+  });
+  app.addEventListener('dragover', function(ev){
+    var li = ev.target.closest && ev.target.closest('.pl-stop'); if (!li || S.dragIdx == null) return;
+    ev.preventDefault();
+    app.querySelectorAll('.drop-before,.drop-after').forEach(function(n){ n.classList.remove('drop-before', 'drop-after'); });
+    var r = li.getBoundingClientRect();
+    li.classList.add(ev.clientY < r.top + r.height / 2 ? 'drop-before' : 'drop-after');
+  });
+  app.addEventListener('drop', function(ev){
+    var li = ev.target.closest && ev.target.closest('.pl-stop'); if (!li || S.dragIdx == null) return;
+    ev.preventDefault();
+    var to = parseInt(li.getAttribute('data-i'), 10), r = li.getBoundingClientRect();
+    if (ev.clientY >= r.top + r.height / 2) to++;
+    var from = S.dragIdx; S.dragIdx = null;
+    if (from < to) to--;
+    move(from, to); changed();
+  });
+  app.addEventListener('dragend', function(){ S.dragIdx = null; render(); });
+
+  function clearDraftState(){
+    S.draft = blank(); S.fare = { dep:'GSP', airfare:0 }; S.fareNote = ''; S.saveErr = ''; S.msg = ''; S.step = 0; S.tf.results = null;
+    lsDel(DRAFT_KEY); lsDel(FARE_KEY);
+  }
+
+  /* ---------- URL parameters ---------- */
+  function stripParams(names){
+    try {
+      var p = new URLSearchParams(window.location.search);
+      names.forEach(function(n){ p.delete(n); });
+      var q = p.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? '?' + q : '') + (window.location.hash || ''));
+    } catch(e){}
+  }
+  function findCity(name){
+    var C = Atlas.data.CITIES || {}, lc = String(name).trim().toLowerCase();
+    return Object.keys(C).filter(function(c){ return c.toLowerCase() === lc; })[0] || null;
+  }
+  async function init(){
+    var p; try { p = new URLSearchParams(window.location.search); } catch(e){ return; }
+    var tripId = p.get('trip'), adds = p.getAll('add');
+    if (tripId) {
+      if (!(S.draft.id != null && String(S.draft.id) === String(tripId))) {
+        setMsg('Loading your trip…');
+        try {
+          var list = await Atlas.trips.list();
+          var t = (list || []).filter(function(x){ return String(x.id) === String(tripId); })[0];
+          if (t) {
+            S.draft = { id:t.id, name:t.name || '', start_date:isDate(t.start_date) ? t.start_date : null, stops:cleanStops(t.stops),
+              mode:t.mode === 'fly' ? 'fly' : 'drive', notes:t.notes || '' };
+            S.fare = { dep:'GSP', airfare:0 }; S.fareNote = '';
+            persist(); setMsg('Editing “' + S.draft.name + '”. Save will update it.');
+          } else setMsg('That trip was not found. Your current draft is unchanged.');
+        } catch(e) { setMsg('Could not load that trip: ' + ((e && e.message) || 'unknown error')); }
+      } else setMsg('Editing “' + S.draft.name + '”. Save will update it.');
+    }
+    if (adds.length) {
+      if (adds.some(function(n){ return !findCity(n); })) { try { await Atlas.ready; } catch(e){} }
+      var notes = [];
+      adds.forEach(function(n){
+        var c = findCity(n);
+        if (!c) return;
+        var r = addCity(c);
+        notes.push(r === 'ok' ? 'Added ' + c : r === 'dup' ? c + ' was already in your trip' : (r || ''));
+      });
+      if (notes.length) { setMsg(notes.join('. ') + '.'); Atlas.toast(E(notes.join('. '))); }
+      persist();
+    }
+    if (tripId || adds.length) stripParams(['add'].concat(tripId ? [] : []));
+    render();
+  }
+
+  S.draft = loadDraft();
+  Atlas.onData(render);
+  Atlas.onSettings(render);
+  init();
+})();
+</script>
+</body>
+</html>

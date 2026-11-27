@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>City · Hensel Family Adventure Atlas</title>
+<link rel="stylesheet" href="/atlas/atlas.css">
+<style>
+  .ct-crumb{font-size:13px;margin:0 0 6px}
+  .ct-crumb a{color:var(--amber-deep);font-weight:600;text-decoration:none;display:inline-flex;align-items:center;min-height:40px}
+  .ct-crumb a:hover{text-decoration:underline}
+  .ct-head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px 14px}
+  .ct-head h1{margin:0;min-width:0}
+  .ct-stamp{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--amber-deep);
+    border:1.5px solid var(--amber);border-radius:6px;padding:3px 8px;background:#FBF3E2;transform:rotate(-2deg);margin-top:6px}
+  .ct-meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-family:var(--mono);font-size:12.5px;color:var(--muted);margin:2px 0 14px}
+  .ct-meta .drive{color:var(--amber-deep);font-weight:600}
+  .ct-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px}
+  .ct-actions .qrbtn,.ct-nav a,.ct-nav span.ct-end{min-height:42px;display:inline-flex;align-items:center;justify-content:center;
+    padding:6px 16px;font-size:14px;text-decoration:none}
+  .ct-status{font-size:13px;color:var(--t-hi);flex:1 1 100%}
+  .ct-nav{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:-8px 0 22px;font-size:13.5px}
+  .ct-nav .ct-cor{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);flex:1 1 100%}
+  .ct-nav a{border:1.5px solid var(--border);border-radius:100px;background:var(--card);color:var(--pine);font-weight:600}
+  .ct-nav a:hover{border-color:var(--amber);background:#FBF3E2}
+  .ct-nav span.ct-end{color:var(--muted);border:1.5px dashed var(--border);border-radius:100px}
+  .ct-day{background:var(--card);border:1px solid var(--border);border-left:6px solid var(--amber);border-radius:14px;padding:20px 22px;
+    box-shadow:var(--shadow);margin-bottom:28px}
+  .ct-day h2,.ct-sec h2{font-family:var(--serif);font-weight:600;font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+  .ct-day .pb-pitch{margin:4px 0 14px}
+  .ct-day .pb-day{margin-bottom:16px}
+  .ct-big{display:block;font-family:var(--serif);font-size:20px;font-weight:600;color:var(--pine);margin:0 0 12px}
+  .ct-big small{font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber-deep);display:block;font-weight:600}
+  .ct-day .pb-meta .row{grid-template-columns:84px 1fr}
+  .ct-over{font-size:13.5px;color:var(--muted);font-style:italic;margin:14px 0 0}
+  .ct-over b{font-style:normal;color:var(--amber-deep);font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;margin-right:6px}
+  .ct-sec{margin-bottom:28px}
+  .ct-filters{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 6px}
+  .ct-filters .chip{min-height:40px;padding:6px 14px;font-size:14px}
+  .ct-filters .chip.age{margin-left:0;font-family:inherit;letter-spacing:0;text-transform:none;border-radius:999px}
+  .ct-filters .sep{width:1px;background:var(--border);margin:4px 2px}
+  .ct-count{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin:6px 2px 12px}
+  .ct-price-note{font-family:var(--mono);font-size:11px;color:var(--muted);margin:0 0 10px}
+  .ct-cards.grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  .ct-sec .events{margin-top:10px}
+  .ct-sec .events .ev{min-height:40px;display:inline-flex;align-items:center;padding:6px 14px;font-size:14px}
+  .ct-cost{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 20px;box-shadow:var(--shadow);max-width:520px}
+  .ct-cost .tot{font-family:var(--mono);font-size:28px;font-weight:700;color:var(--amber-deep);font-variant-numeric:tabular-nums;line-height:1.1}
+  .ct-cost .tot small{font-size:12px;color:var(--muted);font-weight:500;margin-left:6px}
+  .ct-cost dl{margin:12px 0 0;display:grid;grid-template-columns:1fr auto;gap:5px 14px;font-size:13.5px}
+  .ct-cost dt{color:var(--muted)}
+  .ct-cost dd{margin:0;font-family:var(--mono);font-weight:600;color:var(--pine);font-variant-numeric:tabular-nums;text-align:right}
+  .ct-cost .est{color:var(--amber-deep);font-size:9px;border:1px solid var(--amber);border-radius:4px;padding:0 3px;margin-left:4px}
+  .ct-cost p{margin:12px 0 0;font-size:12.5px;color:var(--muted)}
+  .ct-parent{margin-top:26px;padding-top:14px;border-top:1px dashed var(--border);font-size:13px;color:var(--muted)}
+  .ct-parent button{background:none;border:none;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit;min-height:40px;padding:0 4px}
+  .ct-parent button:hover{color:var(--amber-deep)}
+  .ct-lost{text-align:center;padding:50px 0}
+  .ct-lost h1{margin-bottom:10px}
+  .ct-lost .qrbtn{display:inline-flex;min-height:44px;align-items:center;text-decoration:none;padding:8px 20px;font-size:15px}
+  @media(max-width:520px){.ct-day{padding:16px}.ct-cards.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="atlas-chrome"></div>
+<main id="app" class="wrap ac-main"></main>
+<script src="/atlas/atlas-core.js"></script>
+<script>
+Atlas.mountChrome('city');
+
+const esc = Atlas.esc;
+const fl = { themes: new Set(), types: new Set(), ages: new Set() };
+let mark = null;        // {visited, visited_on} for this city, if known
+let markMsg = '';
+let costBound = false;
+let cur = null;         // canonical city name for this page
+
+function requestedCity() {
+  const raw = new URLSearchParams(location.search).get('c');
+  if (!raw) return null;
+  const keys = Object.keys(Atlas.data.CITIES);
+  return keys.find(k => k === raw) || keys.find(k => k.toLowerCase() === raw.toLowerCase().trim()) || null;
+}
+
+// Corridor nodes are labels like "Columbus / Indy"; map them to CITIES keys.
+const NODE_ALIAS = { indy: 'Indianapolis', philly: 'Philadelphia' };
+function nodeCities(label) {
+  const names = Object.keys(Atlas.data.CITIES), out = [];
+  String(label).split(' / ').forEach(part => {
+    const p = part.trim().toLowerCase();
+    const hit = NODE_ALIAS[p] || names.find(n => n.toLowerCase().indexOf(p) !== -1);
+    if (hit && out.indexOf(hit) === -1) out.push(hit);
+  });
+  return out;
+}
+function chainsFor(city) {
+  return Atlas.data.COR.map(c => {
+    const seq = [];
+    c[2].forEach(n => { if (n[1] !== 'home') nodeCities(n[0]).forEach(x => { if (seq.indexOf(x) === -1) seq.push(x); }); });
+    return { title: c[0], tag: c[1], seq: seq };
+  }).filter(ch => ch.seq.indexOf(city) !== -1);
+}
+
+const TYPE_LABEL = { SIG: 'Signature', GEM: 'Hidden gem', OFF: 'Off-beat', SOL: 'Solid' };
+const TYPE_ORDER = { SIG: 0, GEM: 1, OFF: 2, SOL: 3 };
+const AGE_LABEL = { both: 'Ages 5 & 9–10', older: 'Best 9–10', little: 'Great at 5' };
+
+function attractionsFor(city) {
+  return Atlas.data.A.filter(a => a[1] === city)
+    .map((a, i) => ({ a: a, i: i })).sort((x, y) => (TYPE_ORDER[x.a[3]] - TYPE_ORDER[y.a[3]]) || (x.i - y.i)).map(o => o.a);
+}
+function passes(a) {
+  const tags = a[2].split(',');
+  if (fl.themes.size && ![...fl.themes].some(t => tags.indexOf(t) !== -1)) return false;
+  if (fl.types.size && !fl.types.has(a[3])) return false;
+  if (fl.ages.size && !(fl.ages.has(a[4]) || a[4] === 'both')) return false;
+  return true;
+}
+
+function attrCard(a) {
+  const D = Atlas.data, name = a[0], tags = a[2], type = a[3], age = a[4], why = a[5];
+  const tg = tags.split(',').filter(t => D.THEMES[t]).map(t => `<span class="tg" style="background:${D.THEMES[t][1]}">${esc(D.THEMES[t][0])}</span>`).join('');
+  const price = D.PRICES[name] ? `<div class="price">${esc(D.PRICES[name])}</div>` : `<div class="price pending">Price not checked yet</div>`;
+  // why is trusted HTML (may contain <span class='warn'>), intentionally not escaped
+  return `<article class="card"><div class="card-top"><h3 style="margin:0;font-size:15px;font-weight:700;line-height:1.25">${esc(name)}</h3>`
+    + `<span class="badge ${esc(type)}">${esc(TYPE_LABEL[type] || type)}</span></div><p class="why">${why}</p>`
+    + `<div class="card-tags">${tg}<span class="age">${esc(AGE_LABEL[age] || age)}</span></div>${price}</article>`;
+}
+
+function drawCards() {
+  const host = document.getElementById('cards');
+  if (!host || !cur) return;
+  const all = attractionsFor(cur), list = all.filter(passes);
+  host.innerHTML = list.length ? list.map(attrCard).join('')
+    : `<p class="empty" style="display:block;grid-column:1/-1">Nothing matches those filters. <button class="reset" type="button" data-act="clear">Clear filters</button></p>`;
+  const c = document.getElementById('acount');
+  if (c) c.textContent = list.length === all.length ? `${all.length} things to do` : `${list.length} of ${all.length} things to do`;
+}
+
+function toggleFilter(kind, key, btn) {
+  const set = fl[kind];
+  set.has(key) ? set.delete(key) : set.add(key);
+  if (btn) btn.setAttribute('aria-pressed', String(set.has(key)));
+  drawCards();
+}
+function clearFilters() {
+  fl.themes.clear(); fl.types.clear(); fl.ages.clear();
+  document.querySelectorAll('[data-kind]').forEach(b => b.setAttribute('aria-pressed', 'false'));
+  drawCards();
+}
+
+function drawCost() {
+  const host = document.getElementById('cost');
+  if (!host || !cur) return;
+  const c = Atlas.cityCost(cur), m = Atlas.money;
+  host.innerHTML = `<div class="tot">${m(c.total)}<small>for ${c.nights} night${c.nights === 1 ? '' : 's'}</small></div>`
+    + `<dl><dt>Gas, ${Math.round(c.miles)} mi round trip</dt><dd>${m(c.fuel)}</dd>`
+    + `<dt>Hotel, ${c.nights} × ${m(c.hotelRate)}${c.hotelEstimated ? '<span class="est">est</span>' : ''}</dt><dd>${m(c.lodge)}</dd>`
+    + `<dt>Food, ${c.foodDays} day${c.foodDays === 1 ? '' : 's'}</dt><dd>${m(c.food)}</dd></dl>`
+    + `<p>Includes a ${c.pct}% buffer. Change the numbers with the gear button at the top.</p>`;
+}
+
+function drawMark() {
+  const b = document.getElementById('beenBtn');
+  if (b) {
+    const on = !!(mark && mark.visited);
+    b.setAttribute('aria-pressed', String(on));
+    b.textContent = on ? "We've been here ✓" : "We've been here";
+  }
+  const st = document.getElementById('markMsg');
+  if (st) st.textContent = markMsg;
+  const stamp = document.getElementById('stamp');
+  if (stamp) {
+    const on = !!(mark && mark.visited);
+    stamp.hidden = !on;
+    stamp.textContent = on && mark.visited_on ? 'Been there · ' + mark.visited_on : 'Been there';
+  }
+}
+
+async function toggleVisited() {
+  const next = !(mark && mark.visited);
+  markMsg = '';
+  try {
+    const r = await Atlas.marks.set(cur, { visited: next, visited_on: next ? Atlas.isoDate(new Date()) : null });
+    mark = r && typeof r === 'object' ? r : { visited: next, visited_on: next ? Atlas.isoDate(new Date()) : null };
+  } catch (e) {
+    markMsg = (e && e.message) ? e.message : 'Could not save that. Try again in a moment.';
+  }
+  drawMark();
+}
+
+function updateRequest() {
+  const city = cur;
+  const msg = `Refresh pricing in my Family Adventure Atlas for ${city}: research current 2026–2027 `
+    + `admission for every attraction listed under ${city} (fill PRICES) and a typical family-of-four `
+    + `hotel nightly rate (set HOTELS["${city}"]), set PRICE_DATES["${city}"], and redeploy to the same URL.`;
+  return Atlas.copyText(msg).then(ok => {
+    Atlas.toast(ok ? `Copied a refresh request for <b>${esc(city)}</b>. Paste it to Claude to update prices.`
+      : `Ask Claude: <b>“Update prices for ${esc(city)}”</b> to refresh this city.`);
+  });
+}
+
+function notFoundHTML() {
+  return `<div class="ct-lost"><h1 class="page-title">We don't know that place</h1>`
+    + `<p class="page-sub" style="margin:0 auto 18px">Let's find somewhere on the map.</p>`
+    + `<a class="qrbtn solid" href="/atlas/index.html">Back to Explore</a></div>`;
+}
+
+function render() {
+  const app = document.getElementById('app'), D = Atlas.data;
+  cur = requestedCity();
+  if (!cur) { document.title = 'Unknown place · Hensel Family Adventure Atlas'; app.innerHTML = notFoundHTML(); return; }
+  document.title = cur + ' · Hensel Family Adventure Atlas';
+  const meta = D.CITIES[cur], pb = D.PLAYBOOKS.find(p => p.city === cur);
+  const miles = Math.round(Atlas.dist(Atlas.HOME, cur));
+  const chains = chainsFor(cur);
+  const all = attractionsFor(cur);
+
+  // header + actions
+  let html = `<p class="ct-crumb"><a href="/atlas/index.html">← All places</a></p>`
+    + `<div class="ct-head"><h1 class="page-title">${esc(cur)}</h1><span class="ct-stamp" id="stamp" hidden>Been there</span></div>`
+    + `<div class="ct-meta"><span class="drive">${esc(meta.drive)} drive</span><span>about ${miles} mi from ${esc(Atlas.HOME)}</span>`
+    + `<span>${esc(chains.length ? chains.map(c => c.title).join(' · ') : (D.SPOKES[meta.spoke] || ''))}</span></div>`
+    + `<div class="ct-actions"><a class="qrbtn solid" href="/atlas/plan.html?add=${encodeURIComponent(cur)}">Add to a trip</a>`
+    + (Atlas.auth.parent ? `<button class="qrbtn" type="button" id="beenBtn" aria-pressed="false">We've been here</button>` : '')
+    + `<span class="ct-status" id="markMsg" role="status"></span></div>`;
+
+  // previous / next along each corridor
+  html += chains.map(ch => {
+    const i = ch.seq.indexOf(cur), prev = ch.seq[i - 1], next = ch.seq[i + 1];
+    const p = prev ? `<a href="${esc(Atlas.cityUrl(prev))}" rel="prev">← ${esc(prev)}</a>` : `<span class="ct-end">← ${esc(Atlas.HOME)} (home)</span>`;
+    const n = next ? `<a href="${esc(Atlas.cityUrl(next))}" rel="next">${esc(next)} →</a>` : '';
+    return `<nav class="ct-nav" aria-label="Along ${esc(ch.title)}"><span class="ct-cor">${esc(ch.tag)} · ${esc(ch.title)}</span>${p}${n}</nav>`;
+  }).join('');
+
+  // playbook: the headline "one great day"
+  if (pb) {
+    const day = (pb.perfectDay || []).map(s => `<li><span class="pb-when">${esc(s.when)}</span><div><div class="pb-stop">${esc(s.stop)}</div><div class="pb-note">${esc(s.note)}</div></div></li>`).join('');
+    const row = (lab, val) => val ? `<div class="row"><span class="lab">${lab}</span><span class="val">${esc(val)}</span></div>` : '';
+    html += `<section class="ct-day" aria-labelledby="dayh"><h2 id="dayh">One great day</h2>`
+      + (pb.pitch ? `<p class="pb-pitch">${esc(pb.pitch)}</p>` : '')
+      + `<span class="ct-big"><small>The must-do</small>${esc(pb.signature)}</span>`
+      + (day ? `<ul class="pb-day">${day}</ul>` : '')
+      + `<div class="pb-meta">${row('Rainy day', pb.rainyDay)}${row('Eat', pb.foodStop)}${row('Stay', pb.stayArea)}${row('Tip', pb.kidTip)}</div>`
+      + (meta.overlook ? `<p class="ct-over"><b>Most overlook</b>${esc(meta.overlook)}</p>` : '') + `</section>`;
+  }
+
+  // attractions with scoped filters
+  const themeKeys = Object.keys(D.THEMES).filter(k => all.some(a => a[2].split(',').indexOf(k) !== -1));
+  const present = t => all.some(a => a[3] === t), presentAge = g => all.some(a => a[4] === g);
+  const chip = (kind, key, label, extra) => `<button class="chip${extra || ''}" type="button" data-kind="${kind}" data-key="${esc(key)}" aria-pressed="${fl[kind].has(key)}">${label}</button>`;
+  const stamp = D.PRICE_DATES[cur] ? `Prices as of ${esc(D.PRICE_DATES[cur])}` : 'Prices not yet checked';
+  html += `<section class="ct-sec" aria-labelledby="thingsh"><h2 id="thingsh">Things to do</h2>`
+    + `<div class="ct-filters" role="group" aria-label="Filter things to do">`
+    + themeKeys.map(k => chip('themes', k, `<span class="swatch" style="background:${D.THEMES[k][1]}"></span>${esc(D.THEMES[k][0])}`)).join('')
+    + (themeKeys.length ? '<span class="sep"></span>' : '')
+    + ['SIG', 'GEM', 'OFF'].filter(present).map(t => chip('types', t, esc(TYPE_LABEL[t]), ' type')).join('')
+    + (presentAge('little') || presentAge('both') ? chip('ages', 'little', 'Great for age 5', ' age') : '')
+    + (presentAge('older') || presentAge('both') ? chip('ages', 'older', 'Best for 9–10', ' age') : '')
+    + `</div><p class="ct-count" id="acount" role="status" aria-live="polite"></p>`
+    + `<p class="ct-price-note">${stamp}</p><div class="grid ct-cards" id="cards"></div></section>`;
+
+  // events
+  const evs = D.EVENTS[cur] || [];
+  if (evs.length) {
+    html += `<section class="ct-sec" aria-labelledby="evh"><h2 id="evh">What's on</h2><div class="events">`
+      + evs.map(e => `<a class="ev" href="${esc(e.u)}" target="_blank" rel="noopener" title="${esc(e.d)}">${esc(e.n)}</a>`).join('') + `</div></section>`;
+  }
+
+  // cost
+  html += `<section class="ct-sec" aria-labelledby="costh"><h2 id="costh">About what it costs</h2><div class="ct-cost" id="cost"></div></section>`;
+
+  // parents only: quiet price hand-off
+  if (Atlas.auth.parent) {
+    html += `<div class="ct-parent">Parents: <button type="button" id="updBtn" title="Copy a refresh request to paste into Claude">Copy a price-update request for ${esc(cur)}</button></div>`;
+  }
+  app.innerHTML = html;
+
+  if (!app._bound) {
+    app._bound = true;
+    app.addEventListener('click', e => {
+      const t = e.target && e.target.closest ? e.target : null; if (!t) return;
+      const f = t.closest('[data-kind]');
+      if (f) return toggleFilter(f.dataset.kind, f.dataset.key, f);
+      if (t.closest('[data-act="clear"]')) return clearFilters();
+      if (t.closest('#beenBtn')) return toggleVisited();
+      if (t.closest('#updBtn')) return updateRequest();
+    });
+  }
+  drawCards(); drawCost(); drawMark();
+}
+
+Atlas.onData(render);
+if (!costBound) { costBound = true; Atlas.onSettings(drawCost); }
+
+// Visited mark for this city; failures (no table yet, signed out) just mean "unknown".
+Atlas.marks.list().then(rows => {
+  mark = (rows || []).find(r => r && r.city === cur) || null;
+  drawMark();
+}).catch(() => {});
+</script>
+</body>
+</html>

@@ -872,6 +872,110 @@ app.delete('/api/countdowns/:id', async (req, res) => {
   data.length ? ok(res, { deleted: true }) : notFound(res);
 });
 
+// ---------- Adventure Atlas: saved trips & visited marks ----------
+// Tables: atlas_trips, atlas_city_marks (supabase/migrations/20261126000000_atlas_trips.sql).
+// Row-level security lets any family account read and only parents write, so
+// there are no permission checks here; sendErr turns an RLS refusal into 401.
+
+// Validates the fields present in `b`. With `full` true, name is required and
+// absent fields get their defaults. Returns { error } or { row }.
+function atlasTripFields(b, full) {
+  b = b || {};
+  const row = {};
+  if (full || b.name !== undefined) {
+    if (typeof b.name !== 'string' || !b.name.trim()) return { error: 'name is required' };
+    row.name = b.name.trim();
+  }
+  if (b.start_date !== undefined || full) {
+    const d = b.start_date === undefined ? null : b.start_date;
+    if (d !== null && !(typeof d === 'string' && DATE_RE.test(d))) return { error: 'start_date must be YYYY-MM-DD or null' };
+    row.start_date = d;
+  }
+  if (b.stops !== undefined || full) {
+    const stops = b.stops === undefined ? [] : b.stops;
+    if (!Array.isArray(stops)) return { error: 'stops must be an array' };
+    if (stops.length > 20) return { error: 'stops can have at most 20 entries' };
+    const clean = [];
+    for (const s of stops) {
+      if (!s || typeof s.city !== 'string' || !s.city.trim()) return { error: 'each stop needs a city' };
+      if (!Number.isInteger(s.nights) || s.nights < 0 || s.nights > 30) return { error: 'each stop needs nights (integer 0-30)' };
+      clean.push({ city: s.city.trim(), nights: s.nights });
+    }
+    row.stops = clean;
+  }
+  if (b.mode !== undefined || full) {
+    const mode = b.mode === undefined ? 'drive' : b.mode;
+    if (mode !== 'drive' && mode !== 'fly') return { error: "mode must be 'drive' or 'fly'" };
+    row.mode = mode;
+  }
+  if (b.est_cost !== undefined || full) {
+    const c = b.est_cost === undefined ? null : b.est_cost;
+    if (c !== null && !(typeof c === 'number' && Number.isFinite(c) && c >= 0)) return { error: 'est_cost must be a non-negative number or null' };
+    row.est_cost = c;
+  }
+  if (b.notes !== undefined || full) {
+    const n = b.notes === undefined ? '' : b.notes;
+    if (typeof n !== 'string' || n.length > 2000) return { error: 'notes must be a string of at most 2000 characters' };
+    row.notes = n;
+  }
+  return { row };
+}
+
+app.get('/api/trips', async (req, res) => {
+  const { data, error } = await req.sb.from('atlas_trips').select('*')
+    .order('start_date', { ascending: true, nullsFirst: false }).order('id');
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.post('/api/trips', async (req, res) => {
+  const { row, error: msg } = atlasTripFields(req.body, true);
+  if (msg) return bad(res, msg);
+  const { data, error } = await req.sb.from('atlas_trips').insert(row).select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.put('/api/trips/:id', async (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) return notFound(res);
+  const { data: t } = await req.sb.from('atlas_trips').select('id').eq('id', req.params.id).maybeSingle();
+  if (!t) return notFound(res);
+  const { row, error: msg } = atlasTripFields(req.body, false);
+  if (msg) return bad(res, msg);
+  if (!Object.keys(row).length) return bad(res, 'nothing to update');
+  const { data, error } = await req.sb.from('atlas_trips').update(row).eq('id', t.id).select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.delete('/api/trips/:id', async (req, res) => {
+  if (!/^\d+$/.test(req.params.id)) return notFound(res);
+  const { data, error } = await req.sb.from('atlas_trips').delete().eq('id', req.params.id).select();
+  if (sendErr(res, error)) return;
+  data.length ? ok(res, { deleted: true }) : notFound(res);
+});
+
+app.get('/api/city-marks', async (req, res) => {
+  const { data, error } = await req.sb.from('atlas_city_marks').select('*').order('city');
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
+app.put('/api/city-marks/:city', async (req, res) => {
+  const city = String(req.params.city || '').trim();
+  if (!city || city.length > 120) return bad(res, 'city is required');
+  const { visited, visited_on } = req.body || {};
+  if (typeof visited !== 'boolean') return bad(res, 'visited (true/false) is required');
+  if (visited_on != null && !(typeof visited_on === 'string' && DATE_RE.test(visited_on))) {
+    return bad(res, 'visited_on must be YYYY-MM-DD or null');
+  }
+  const { data, error } = await req.sb.from('atlas_city_marks')
+    .upsert({ city, visited, visited_on: visited_on || null, updated_at: new Date().toISOString() }, { onConflict: 'city' })
+    .select().single();
+  if (sendErr(res, error)) return;
+  ok(res, data);
+});
+
 app.get('/api/announcements', async (req, res) => {
   const { data, error } = await req.sb.from('announcements').select('*').order('id', { ascending: false });
   if (sendErr(res, error)) return;
